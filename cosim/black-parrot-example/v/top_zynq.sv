@@ -150,7 +150,7 @@ module top_zynq
       // need to update C_S00_AXI_ADDR_WIDTH accordingly
       ,.num_fifo_ps_to_pl_p(1)
       ,.num_fifo_pl_to_ps_p(1)
-      ,.num_regs_pl_to_ps_p(2+4)
+      ,.num_regs_pl_to_ps_p(2+2+4)
       ,.C_S_AXI_DATA_WIDTH(C_S00_AXI_DATA_WIDTH)
       ,.C_S_AXI_ADDR_WIDTH(C_S00_AXI_ADDR_WIDTH)
       ) zps
@@ -170,7 +170,9 @@ module top_zynq
         // to increment the counters.
         //
 
-        ,.csr_data_i({ mem_profiler_r[127:96]
+        ,.csr_data_i({ blackparrot.unicore.unicore_lite.core_minimal.be.calculator.pipe_sys.csr.mcycle_lo[63:32]
+                       , blackparrot.unicore.unicore_lite.core_minimal.be.calculator.pipe_sys.csr.mcycle_lo[31:0]
+                       , mem_profiler_r[127:96]
                        , mem_profiler_r[95:64]
                        , mem_profiler_r[63:32]
                        , mem_profiler_r[31:0]
