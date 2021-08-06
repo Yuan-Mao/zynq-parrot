@@ -9,6 +9,7 @@
 #include <string>
 #include <fstream>
 #include <iostream>
+#include <cassert>
 #include "bsg_nonsynth_dpi_clock_gen.hpp"
 #include "bsg_nonsynth_dpi_gpio.hpp"
 
@@ -17,8 +18,16 @@ using namespace bsg_nonsynth_dpi;
 
 #include <svdpi.h>
 
+#ifndef _STRINGIFY
 #define _STRINGIFY(x) #x
+#endif
+#ifndef STRINGIFY
 #define STRINGIFY(x) _STRINGIFY(x)
+#endif
+
+#ifndef TOP_NAME
+#error  TOP_NAME needs to be defined to the name of the toplevel module
+#endif
 
 #ifndef ZYNQ_PL_DEBUG
 #define ZYNQ_PL_DEBUG 0
@@ -164,11 +173,9 @@ public:
 };
 
 class bp_zynq_pl {
-    svScope dpi;
+    svScope top;
     std::string top_name;
-    std::string dpi_name;
-    std::string full_dpi_name;
-    
+
     axil<GP0_ADDR_WIDTH,GP0_DATA_WIDTH> *axi_gp0;
     axil<GP1_ADDR_WIDTH,GP1_DATA_WIDTH> *axi_gp1;
 
@@ -191,20 +198,14 @@ class bp_zynq_pl {
         eval();
     }
 
-    void eval() {
-        svScope prev;
-        prev = svSetScope(top);
-        bsg_dpi_next();
-        svSetScope(prev);
-    }
+    void eval();
 
 public:
   
     bp_zynq_pl(int argc, char *argv[]) {
-        top_name = argv[0];
-        dpi_name = argv[1];
-        full_dpi_name = top_name + "." dpi_name;
-        dpi = svGetScopeFromName(full_dpi_name.c_str());
+        top_name = STRINGIFY(TOP_NAME);
+        
+        top = svGetScopeFromName(top_name.c_str());
         
         // Tick once to register clock generators
         eval();
@@ -222,7 +223,7 @@ public:
     }
 
     ~bp_zynq_pl(void) {
-        dpi = nullptr;
+        top = nullptr;
     }
 
     bool done(void) {

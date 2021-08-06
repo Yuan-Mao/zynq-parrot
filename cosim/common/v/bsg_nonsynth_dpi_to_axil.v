@@ -32,7 +32,11 @@ module bsg_nonsynth_dpi_to_axil
    , output logic                           rready_o
    );
 
+`ifdef VERILATOR
     bsg_nonsynth_dpi_clock_gen
+`else
+    bsg_nonsynth_clock_gen
+`endif
      #(.cycle_time_p(1000))
      clock_gen
       (.o(aclk_o));
