@@ -25,8 +25,8 @@ CSOURCES += $(ZYNQ_PARROT_DIR)/cosim/shell-example/ps.cpp
 CSOURCES += $(ZYNQ_PARROT_DIR)/cosim/include/vcs/bp_zynq_pl.cpp
 
 VSOURCES += top.v
-VSOURCES += ../../common/v/bsg_zynq_pl_shell.v
-VSOURCES += ../../common/v/bsg_nonsynth_dpi_to_axil.v
+VSOURCES += $(ZYNQ_PARROT_DIR)/cosim/common/v/bsg_zynq_pl_shell.v
+VSOURCES += $(ZYNQ_PARROT_DIR)/cosim/common/v/bsg_nonsynth_dpi_to_axil.v
 VSOURCES += $(BASEJUMP_STL_DIR)/bsg_misc/bsg_mux_one_hot.v
 VSOURCES += $(BASEJUMP_STL_DIR)/bsg_misc/bsg_decode.v
 VSOURCES += $(BASEJUMP_STL_DIR)/bsg_misc/bsg_decode_with_v.v
