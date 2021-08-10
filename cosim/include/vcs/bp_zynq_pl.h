@@ -29,8 +29,12 @@ using namespace bsg_nonsynth_dpi;
 #error  TOP_NAME needs to be defined to the name of the toplevel module
 #endif
 
-#ifndef ZYNQ_PL_DEBUG
-#define ZYNQ_PL_DEBUG 0
+#define ZYNQ_PL_DEBUG 1
+#ifdef  ZYNQ_PL_DEBUG
+#define zynq_pl_debug(fmt, ...)                   \
+    do { printf("[zynq debug]: " fmt, ##__VA_ARGS__); fflush(NULL); } while (0)
+#else
+#define zynq_pl_debug(fmt, ...)
 #endif
 
 #ifndef ZYNQ_AXI_TIMEOUT
@@ -191,7 +195,7 @@ class bp_zynq_pl {
 
     // Each bsg_timekeeper::next() moves to the next clock edge
     //   so we need 2 to perform one full clock cycle.
-    // If your design does not evaluate things on negedge, you could omit 
+    // If your design does not evaluate things on negedge, you could omit
     //   the first eval, but BSG designs tend to do assertions on negedge
     //   at the least.
     void tick() {
@@ -201,15 +205,15 @@ class bp_zynq_pl {
     void eval();
 
 public:
-  
+
     bp_zynq_pl(int argc, char *argv[]) {
         top_name = STRINGIFY(TOP_NAME);
-        
+        zynq_pl_debug("top_name=%s\n", top_name.c_str());
         top = svGetScopeFromName(top_name.c_str());
-        
+
         // Tick once to register clock generators
         eval();
-        
+
         tick();
 
 #ifdef GP0_ENABLE
@@ -249,8 +253,7 @@ public:
         else
             assert(0);
 
-        if (ZYNQ_PL_DEBUG)
-            printf("  bp_zynq_pl: AXI writing [%x] -> port %d, [%x]<-%8.8x\n", address_orig, index, address, data);
+        zynq_pl_debug("  bp_zynq_pl: AXI writing [%x] -> port %d, [%x]<-%8.8x\n", address_orig, index, address, data);
 
         if (index == 0) {
             axil_write_helper(axi_gp0, address, data, wstrb);
@@ -330,14 +333,18 @@ public:
         else
             assert(0);
 
+        zynq_pl_debug("%s: calling axi_read_helper(%d, 0x%08x)\n"
+                      , __func__
+                      , index
+                      , address);
+
         if (index == 0) {
             data = axil_read_helper(axi_gp0, address);
         } else if (index == 1) {
             data = axil_read_helper(axi_gp1, address);
         }
 
-        if (ZYNQ_PL_DEBUG)
-            printf("  bp_zynq_pl: AXI reading [%x] -> port %d, [%x]->%8.8x\n", address_orig, index, address, data);
+        zynq_pl_debug("  bp_zynq_pl: AXI reading [%x] -> port %d, [%x]->%8.8x\n", address_orig, index, address, data);
 
         return data;
     }
