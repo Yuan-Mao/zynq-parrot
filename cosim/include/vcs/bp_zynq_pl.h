@@ -37,6 +37,12 @@ using namespace bsg_nonsynth_dpi;
 #define zynq_pl_debug(fmt, ...)
 #endif
 
+#define zynq_pl_error(fmt, ...)                 \
+    do { fprintf(stderr, "[zynq error]: " fmt, ##__VA_ARGS__); } while (0)
+
+#define zynq_pl_info(fmt, ...)                  \
+    do { printf("[zynq info]: " fmt, ##__VA_ARGS__); fflush(NULL); } while (0)
+
 #ifndef ZYNQ_AXI_TIMEOUT
 #define ZYNQ_AXI_TIMEOUT 8000
 #endif
@@ -186,11 +192,11 @@ class bp_zynq_pl {
     // Wait for (low true) reset to be asserted by the testbench
     template <unsigned int A, unsigned int D>
     void reset(axil<A, D> *axil) {
-        printf("bp_zynq_pl: Entering reset\n");
+        zynq_pl_info("bp_zynq_pl: Entering reset\n");
         while (axil->p_aresetn == 1) {
             tick();
         }
-        printf("bp_zynq_pl: Exiting reset\n");
+        zynq_pl_info("bp_zynq_pl: Exiting reset\n");
     }
 
     // Each bsg_timekeeper::next() moves to the next clock edge
@@ -231,7 +237,7 @@ public:
     }
 
     bool done(void) {
-        printf("bp_zynq_pl: done() called, exiting\n");
+        zynq_pl_info("bp_zynq_pl: done() called, exiting\n");
     }
 
     void axil_write(unsigned int address, int data, int wstrb) {
@@ -278,7 +284,7 @@ public:
             while (axil->p_awready == 0 && axil->p_wready == 0) {
 
                 if (timeout_counter++ > ZYNQ_AXI_TIMEOUT) {
-                    printf("bp_zynq_pl: AXI write timeout\n");
+                    zynq_pl_error("bp_zynq_pl: AXI write timeout\n");
                     done();
                     exit(0);
                     assert(0);
@@ -298,7 +304,7 @@ public:
             // wait for bvalid to go high
             while (axil->p_bvalid == 0) {
                 if (timeout_counter++ > ZYNQ_AXI_TIMEOUT) {
-                    printf("bp_zynq_pl: AXI bvalid timeout\n");
+                    zynq_pl_error("bp_zynq_pl: AXI bvalid timeout\n");
                     done();
                     exit(0);
                 }
@@ -362,7 +368,7 @@ public:
         while (axil->p_arready == 0)
         {
             if (timeout_counter++ > ZYNQ_AXI_TIMEOUT) {
-                printf("bp_zynq_pl: AXI read arready timeout\n");
+                zynq_pl_error("bp_zynq_pl: AXI read arready timeout\n");
                 done();
                 exit(0);
             }
@@ -383,7 +389,7 @@ public:
         while (axil->p_rvalid == 0)
         {
             if (timeout_counter++ > ZYNQ_AXI_TIMEOUT) {
-                printf("bp_zynq_pl: AXI read rvalid timeout\n");
+                zynq_pl_error("bp_zynq_pl: AXI read rvalid timeout\n");
                 done();
                 exit(0);
             }
