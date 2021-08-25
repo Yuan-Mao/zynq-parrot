@@ -225,7 +225,6 @@ public:
     }
 
     ~bp_zynq_pl(void) {
-        zynq_pl_info("~bp_zynq_pl: calling\n");
 #ifdef GP0_ENABLE
         delete axi_gp0;
 #endif
