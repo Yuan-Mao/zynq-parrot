@@ -7,8 +7,13 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include "bp_zynq_pl.h"
-
+#ifdef VCS
+extern "C" int cosim_main() {
+    int argc = 0;
+    char ** argv = NULL;
+#else
 int main(int argc, char **argv) {
+#endif
         bp_zynq_pl *zpl = new bp_zynq_pl(argc, argv);
 
 
