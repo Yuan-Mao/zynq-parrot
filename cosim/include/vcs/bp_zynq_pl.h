@@ -109,6 +109,9 @@ public:
         gpio = new dpi_gpio<W>(hierarchy);
     }
 
+    ~pin() {
+        delete gpio;
+    }
     void operator=(const unsigned int val) {
         unsigned int bval = 0;
         for (int i = 0; i < W; i++) {
@@ -199,28 +202,17 @@ class bp_zynq_pl {
         zynq_pl_info("bp_zynq_pl: Exiting reset\n");
     }
 
-    // Each bsg_timekeeper::next() moves to the next clock edge
-    //   so we need 2 to perform one full clock cycle.
-    // If your design does not evaluate things on negedge, you could omit
-    //   the first eval, but BSG designs tend to do assertions on negedge
-    //   at the least.
-    void tick() {
-        eval();
-    }
-
     void eval();
 
 public:
+    void tick() {
+        eval();
+    }
 
     bp_zynq_pl(int argc, char *argv[]) {
         top_name = STRINGIFY(TOP_NAME);
         zynq_pl_debug("top_name=%s\n", top_name.c_str());
         top = svGetScopeFromName(top_name.c_str());
-
-        // Tick once to register clock generators
-        eval();
-
-        tick();
 
 #ifdef GP0_ENABLE
         axi_gp0 = new axil<GP0_ADDR_WIDTH, GP0_DATA_WIDTH>(STRINGIFY(GP0_HIER_BASE));
@@ -233,6 +225,13 @@ public:
     }
 
     ~bp_zynq_pl(void) {
+        zynq_pl_info("~bp_zynq_pl: calling\n");
+#ifdef GP0_ENABLE
+        delete axi_gp0;
+#endif
+#ifdef GP1_ENABLE
+        delete axi_gp1;
+#endif
         top = nullptr;
     }
 
