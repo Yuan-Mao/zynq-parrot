@@ -24,7 +24,7 @@ module top_zynq
 
      // needs to be updated to fit all addresses used
      // by bsg_zynq_pl_shell read_locs_lp (update in top.v as well)
-     , parameter integer C_S00_AXI_ADDR_WIDTH   = 6
+     , parameter integer C_S00_AXI_ADDR_WIDTH   = 8
      , parameter integer C_S01_AXI_DATA_WIDTH   = 32
      // the ARM AXI S01 interface drops the top two bits
      , parameter integer C_S01_AXI_ADDR_WIDTH   = 30
@@ -123,13 +123,97 @@ module top_zynq
     ,input wire [1:0]                           m00_axi_rresp
     );
 
+   localparam counter_num_p = 22;
+   logic [counter_num_p*64-1:0] counter_data;
+
+   bp_core_counters
+    #(.bp_params_p(bp_params_p)
+     ,.width_p(64)
+     )
+     core_counters
+     (.clk_i(s01_axi_aclk)
+     ,.reset_i(bp_reset_li)
+     ,.freeze_i(blackparrot.unicore.unicore_lite.core_minimal.be.calculator.pipe_sys.csr.cfg_bus_cast_i.freeze)
+
+     ,.mhartid_i('0)
+
+     ,.fe_stall_i(blackparrot.unicore.unicore_lite.core_minimal.fe.is_stall)
+     ,.fe_queue_full_i(~blackparrot.unicore.unicore_lite.core_minimal.fe.fe_queue_ready_i)
+
+     ,.icache_access_i(blackparrot.unicore.unicore_lite.core_minimal.fe.v_if2_r)
+     ,.icache_rollback_i(blackparrot.unicore.unicore_lite.core_minimal.fe.icache_miss)
+     ,.icache_miss_i(~blackparrot.unicore.unicore_lite.core_minimal.fe.icache.ready_o)
+
+     ,.taken_i((blackparrot.unicore.unicore_lite.core_minimal.fe.pc_gen.is_br 
+                & blackparrot.unicore.unicore_lite.core_minimal.fe.pc_gen.pred_if2_r.pred) 
+                | blackparrot.unicore.unicore_lite.core_minimal.fe.pc_gen.is_jal)
+     ,.ovr_taken_i(blackparrot.unicore.unicore_lite.core_minimal.fe.pc_gen.ovr_taken)
+     ,.ret_i(blackparrot.unicore.unicore_lite.core_minimal.fe.pc_gen.is_ret)
+     ,.ovr_ret_i(blackparrot.unicore.unicore_lite.core_minimal.fe.pc_gen.ovr_ret)
+
+     ,.fe_cmd_nonattaboy_i(blackparrot.unicore.unicore_lite.core_minimal.be.director.fe_cmd_nonattaboy_v)
+
+     ,.mispredict_i(blackparrot.unicore.unicore_lite.core_minimal.be.director.fe_cmd_v_li
+                    & (blackparrot.unicore.unicore_lite.core_minimal.be.director.fe_cmd_li.opcode == 1)
+                    & (blackparrot.unicore.unicore_lite.core_minimal.be.director.fe_cmd_pc_redirect_operands.subopcode == 2))
+     ,.mispredict_reason_i(blackparrot.unicore.unicore_lite.core_minimal.be.director.fe_cmd_pc_redirect_operands.misprediction_reason)
+
+     ,.dcache_access_i(blackparrot.unicore.unicore_lite.core_minimal.be.calculator.pipe_mem.dcache_pkt_v 
+                       & ~blackparrot.unicore.unicore_lite.core_minimal.be.calculator.pipe_mem.flush_i)
+     ,.dcache_rollback_i(blackparrot.unicore.unicore_lite.core_minimal.be.scheduler.commit_pkt_cast_i.rollback)
+     ,.dcache_miss_i(~blackparrot.unicore.unicore_lite.core_minimal.be.calculator.pipe_mem.dcache.ready_o)
+
+     ,.control_haz_i(blackparrot.unicore.unicore_lite.core_minimal.be.detector.control_haz_v)
+
+     ,.data_haz_i(blackparrot.unicore.unicore_lite.core_minimal.be.detector.data_haz_v)
+     ,.load_dep_i((blackparrot.unicore.unicore_lite.core_minimal.be.detector.dep_status_r[0].emem_iwb_v
+                   | blackparrot.unicore.unicore_lite.core_minimal.be.detector.dep_status_r[0].fmem_iwb_v
+                   | blackparrot.unicore.unicore_lite.core_minimal.be.detector.dep_status_r[1].fmem_iwb_v
+                   | blackparrot.unicore.unicore_lite.core_minimal.be.detector.dep_status_r[0].emem_fwb_v
+                   | blackparrot.unicore.unicore_lite.core_minimal.be.detector.dep_status_r[0].fmem_fwb_v
+                   | blackparrot.unicore.unicore_lite.core_minimal.be.detector.dep_status_r[1].fmem_fwb_v
+                   ) & blackparrot.unicore.unicore_lite.core_minimal.be.detector.data_haz_v
+                  )
+     ,.mul_dep_i((blackparrot.unicore.unicore_lite.core_minimal.be.detector.dep_status_r[0].mul_iwb_v
+                  | blackparrot.unicore.unicore_lite.core_minimal.be.detector.dep_status_r[1].mul_iwb_v
+                  | blackparrot.unicore.unicore_lite.core_minimal.be.detector.dep_status_r[2].mul_iwb_v
+                  ) & blackparrot.unicore.unicore_lite.core_minimal.be.detector.data_haz_v
+                 )
+
+     ,.struct_haz_i(blackparrot.unicore.unicore_lite.core_minimal.be.detector.struct_haz_v)
+
+     ,.fe_stall_o             (counter_data[1*64-1 : 0*64])
+     ,.fe_queue_full_o        (counter_data[2*64-1 : 1*64])
+     ,.icache_access_o        (counter_data[3*64-1 : 2*64])
+     ,.icache_rollback_o      (counter_data[4*64-1 : 3*64])
+     ,.icache_miss_o          (counter_data[5*64-1 : 4*64])
+     ,.taken_o                (counter_data[6*64-1 : 5*64])
+     ,.ovr_taken_o            (counter_data[7*64-1 : 6*64])
+     ,.ret_o                  (counter_data[8*64-1 : 7*64])
+     ,.ovr_ret_o              (counter_data[9*64-1 : 8*64])
+     ,.fe_cmd_nonattaboy_o    (counter_data[10*64-1 : 9*64])
+     ,.mispredict_o           (counter_data[11*64-1 : 10*64])
+     ,.mispredict_taken_o     (counter_data[12*64-1 : 11*64])
+     ,.mispredict_ntaken_o    (counter_data[13*64-1 : 12*64])
+     ,.mispredict_nonbr_o     (counter_data[14*64-1 : 13*64])
+     ,.control_haz_o          (counter_data[15*64-1 : 14*64])
+     ,.data_haz_o             (counter_data[16*64-1 : 15*64])
+     ,.load_dep_o             (counter_data[17*64-1 : 16*64])
+     ,.mul_dep_o              (counter_data[18*64-1 : 17*64])
+     ,.struct_haz_o           (counter_data[19*64-1 : 18*64])
+     ,.dcache_access_o        (counter_data[20*64-1 : 19*64])
+     ,.dcache_rollback_o      (counter_data[21*64-1 : 20*64])
+     ,.dcache_miss_o          (counter_data[22*64-1 : 21*64])
+     );
+
+
    logic [2:0][C_S00_AXI_DATA_WIDTH-1:0]        csr_data_lo;
    logic [C_S00_AXI_DATA_WIDTH-1:0]             pl_to_ps_fifo_data_li, ps_to_pl_fifo_data_lo;
    logic                                        pl_to_ps_fifo_v_li, pl_to_ps_fifo_ready_lo;
    logic                                        ps_to_pl_fifo_v_lo, ps_to_pl_fifo_yumi_li;
 
    localparam debug_lp = 0;
-   localparam memory_upper_limit_lp = 120*1024*1024;
+   localparam memory_upper_limit_lp = 241*1024*1024;
 
    // use this as a way of figuring out how much memory a RISC-V program is using
    // each bit corresponds to a region of memory
@@ -150,7 +234,7 @@ module top_zynq
       // need to update C_S00_AXI_ADDR_WIDTH accordingly
       ,.num_fifo_ps_to_pl_p(1)
       ,.num_fifo_pl_to_ps_p(1)
-      ,.num_regs_pl_to_ps_p(2+2+4)
+      ,.num_regs_pl_to_ps_p(2+2+4+(2*counter_num_p))
       ,.C_S_AXI_DATA_WIDTH(C_S00_AXI_DATA_WIDTH)
       ,.C_S_AXI_ADDR_WIDTH(C_S00_AXI_ADDR_WIDTH)
       ) zps
@@ -170,7 +254,8 @@ module top_zynq
         // to increment the counters.
         //
 
-        ,.csr_data_i({ blackparrot.unicore.unicore_lite.core_minimal.be.calculator.pipe_sys.csr.mcycle_lo[63:32]
+        ,.csr_data_i({ counter_data
+                       ,blackparrot.unicore.unicore_lite.core_minimal.be.calculator.pipe_sys.csr.mcycle_lo[63:32]
                        , blackparrot.unicore.unicore_lite.core_minimal.be.calculator.pipe_sys.csr.mcycle_lo[31:0]
                        , mem_profiler_r[127:96]
                        , mem_profiler_r[95:64]
@@ -220,7 +305,7 @@ module top_zynq
    logic                      io_resp_v_li, io_resp_yumi_lo;
 
    `declare_bsg_cache_dma_pkt_s(caddr_width_p);
-   bsg_cache_dma_pkt_s dma_pkt_lo;
+   bsg_cache_dma_pkt_s         dma_pkt_lo;
    logic                       dma_pkt_v_lo, dma_pkt_yumi_li;
    logic [l2_fill_width_p-1:0] dma_data_lo;
    logic                       dma_data_v_lo, dma_data_yumi_li;
@@ -332,13 +417,12 @@ module top_zynq
       );
 
    localparam axi_id_width_p = 6;
-   localparam axi_addr_width_p = 33;
    localparam axi_data_width_p = 64;
    localparam axi_strb_width_p = axi_data_width_p >> 3;
    localparam axi_burst_len_p = 8;
 
-   wire [axi_addr_width_p-1:0] axi_awaddr;
-   wire [axi_addr_width_p-1:0] axi_araddr;
+   wire [caddr_width_p-1:0] axi_awaddr;
+   wire [caddr_width_p-1:0] axi_araddr;
 
    // to translate from BP DRAM space to ARM PS DRAM space
    // we xor-subtract the BP DRAM base address (32'h8000_0000) and add the

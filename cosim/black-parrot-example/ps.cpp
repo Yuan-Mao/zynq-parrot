@@ -16,14 +16,22 @@
 #include "bp_zynq_pl.h"
 
 #define FREE_DRAM 0
-#define DRAM_ALLOCATE_SIZE 120 * 1024 * 1024
+#define DRAM_ALLOCATE_SIZE 241 * 1024 * 1024
 
-#ifndef ZYNQ_PL_DEBUG
-#define ZYNQ_PL_DEBUG 0
-#endif
+//#ifndef ZYNQ_PL_DEBUG
+//#define ZYNQ_PL_DEBUG 0
+//#endif
 
 void nbf_load(bp_zynq_pl *zpl, char *);
 bool decode_bp_output(bp_zynq_pl *zpl, int data);
+void report(bp_zynq_pl *zpl, char *, unsigned long long, unsigned long long);
+
+const char* metrics[] = { 
+  "fe_stall", "fe_queue_full", "icache_access", "icache_rollback", "icache_miss",
+  "taken", "ovr_taken", "ret", "over_ret", "fe_cmd_nonattaboy", "mispredict",
+  "mispredict_taken", "mispredict_ntaken", "mispredict_nonbr", "control_haz", "data_dep",
+  "load_dep", "mul_dep", "struct_haz", "dcache_access", "dcache_rollback", "dcache_miss"
+};
 
 inline unsigned long long get_counter_64(bp_zynq_pl *zpl, unsigned int addr) {
   unsigned long long val;
@@ -40,13 +48,13 @@ inline unsigned long long get_counter_64(bp_zynq_pl *zpl, unsigned int addr) {
   } while (1);
 }
 
-#ifdef VERILATOR
-int main(int argc, char **argv) {
-#else
+#ifdef VCS
 extern "C" void cosim_main(char *argstr) {
   int argc = get_argc(argstr);
   char *argv[argc];
   get_argv(argstr, argc, argv);
+#else
+int main(int argc, char **argv) {
 #endif
   // this ensures that even with tee, the output is line buffered
   // so that we can see what is happening in real time
@@ -233,7 +241,7 @@ extern "C" void cosim_main(char *argstr) {
   nbf_load(zpl, argv[1]);
   struct timespec start, end;
   clock_gettime(CLOCK_MONOTONIC, &start);
-  unsigned long long minstrret_start =
+  unsigned long long minstret_start =
       get_counter_64(zpl, 0x18 + GP0_ADDR_BASE);
   unsigned long long mcycle_start = get_counter_64(zpl,0x30 + GP0_ADDR_BASE);
   unsigned long long mtime_start = get_counter_64(zpl, 0xA0000000 + 0x30bff8);
@@ -252,7 +260,7 @@ extern "C" void cosim_main(char *argstr) {
 
   unsigned long long mtime_stop = get_counter_64(zpl, 0xA0000000 + 0x30bff8);
   unsigned long long mcycle_stop = get_counter_64(zpl,0x30 + GP0_ADDR_BASE);
-  unsigned long long minstrret_stop = get_counter_64(zpl, 0x18 + GP0_ADDR_BASE);
+  unsigned long long minstret_stop = get_counter_64(zpl, 0x18 + GP0_ADDR_BASE);
   clock_gettime(CLOCK_MONOTONIC, &end);
   setlocale(LC_NUMERIC, "");
   bsg_pr_info("ps.cpp: end polling i/o\n");
@@ -264,12 +272,12 @@ extern "C" void cosim_main(char *argstr) {
   bsg_pr_info("ps.cpp: mcycle delta:                  %'16llu (%16llx)\n",
               mcycle_delta, mcycle_delta);
   bsg_pr_info("ps.cpp: minstret start: %'16llu (%16llx)\n",
-              minstrret_start, minstrret_start);
+              minstret_start, minstret_start);
   bsg_pr_info("ps.cpp: minstret stop: %'16llu (%16llx)\n",
-              minstrret_stop, minstrret_stop);
-  unsigned long long minstrret_delta = minstrret_stop - minstrret_start;
+              minstret_stop, minstret_stop);
+  unsigned long long minstret_delta = minstret_stop - minstret_start;
   bsg_pr_info("ps.cpp: minstret delta:                  %'16llu (%16llx)\n",
-              minstrret_delta, minstrret_delta);
+              minstret_delta, minstret_delta);
   bsg_pr_info("ps.cpp: MTIME start:                     %'16llu (%16llx)\n",
               mtime_start, mtime_start);
   bsg_pr_info("ps.cpp: MTIME stop:                      %'16llu (%16llx)\n",
@@ -278,7 +286,7 @@ extern "C" void cosim_main(char *argstr) {
   bsg_pr_info("ps.cpp: MTIME delta (=1/8 BP cycles):    %'16llu (%16llx)\n",
               mtime_delta, mtime_delta);
   bsg_pr_info("ps.cpp: IPC        :                     %'16f\n",
-              ((double)minstrret_delta) / ((double)(mcycle_delta)));
+              ((double)minstret_delta) / ((double)(mcycle_delta)));
   unsigned long long diff_ns =
       1000LL * 1000LL * 1000LL *
           ((unsigned long long)(end.tv_sec - start.tv_sec)) +
@@ -296,6 +304,8 @@ extern "C" void cosim_main(char *argstr) {
               zpl->axil_read(0x28 + GP0_ADDR_BASE),
               zpl->axil_read(0x24 + GP0_ADDR_BASE),
               zpl->axil_read(0x20 + GP0_ADDR_BASE));
+
+  report(zpl, argv[1], mcycle_delta, minstret_delta);
 #ifdef FPGA
   // in general we do not want to free the dram; the Xilinx allocator has a
   // tendency to
@@ -397,7 +407,7 @@ void nbf_load(bp_zynq_pl *zpl, char *nbf_filename) {
       bsg_pr_dbg_ps("ps.cpp: finished loading %d lines of nbf.\n", line_count);
       return;
     }
-    } else {
+    else {
       bsg_pr_dbg_ps("ps.cpp: unrecognized nbf command, line %d : %x\n",
                     line_count, nbf[0]);
       return;
@@ -412,7 +422,8 @@ bool decode_bp_output(bp_zynq_pl *zpl, int data) {
   int print_data = data & 0xFF;
   if (rd_wr) {
     if (address == 0x101000) {
-      bsg_pr_info("%c", print_data);
+      printf("%c", print_data);
+      fflush(stdout);
       return false;
     } else if (address == 0x102000) {
       if (print_data == 0)
@@ -430,4 +441,29 @@ bool decode_bp_output(bp_zynq_pl *zpl, int data) {
     bsg_pr_err("ps.cpp: Unsupported read (%x)\n", data);
     return false;
   }
+}
+
+void report(bp_zynq_pl *zpl, char* nbf_filename
+            , unsigned long long mcycle, unsigned long long minstret) {
+
+  char filename[100];
+  if(strrchr(nbf_filename, '/') != NULL)
+    strcpy(filename, 1 + strrchr(nbf_filename, '/'));
+  else
+    strcpy(filename, nbf_filename);
+  *strrchr(filename, '.') = '\0';
+  strcat(filename, ".rep");
+  ofstream file(filename);
+
+  if(file.is_open()) {
+    file << nbf_filename << endl;
+    file << "mcycle" << "\t" << mcycle << "\n";
+    file << "minstret" << "\t" << minstret << "\n";
+    for(int i=0; i<sizeof(metrics)/sizeof(metrics[0]); i++) {
+      file << metrics[i] << "\t";
+      file << get_counter_64(zpl,GP0_ADDR_BASE + 0x38 + i*8) << "\n";
+    }
+    file.close();
+  }
+  else printf("Cannot open report file: %s\n", filename);
 }

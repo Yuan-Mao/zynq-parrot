@@ -78,7 +78,12 @@ module bp_unicore_axi_sim
   bp_bedrock_uce_mem_msg_s io_resp_lo;
   logic io_cmd_v_li, io_cmd_yumi_lo;
   logic io_resp_v_lo, io_resp_ready_li;
-  
+
+  // change access address size
+  logic [daddr_width_p:0] dma_pkt_lo;
+  assign dma_pkt_o[caddr_width_p]    = dma_pkt_lo[daddr_width_p];
+  assign dma_pkt_o[0+:caddr_width_p] = dma_pkt_lo[0+:daddr_width_p];
+
 // note: bp_unicore has L2 cache; (bp_unicore_lite does not, but does not have dma_* interface
 // and would need mem_cmd/mem_resp-to-axi converter to be written.)
   bp_unicore
@@ -105,7 +110,7 @@ module bp_unicore_axi_sim
     ,.io_resp_v_o(io_resp_v_lo)
     ,.io_resp_ready_and_i(io_resp_ready_li)
 
-    ,.dma_pkt_o(dma_pkt_o)
+    ,.dma_pkt_o(dma_pkt_lo)
     ,.dma_pkt_v_o(dma_pkt_v_o)
     ,.dma_pkt_yumi_i(dma_pkt_yumi_i)
 

@@ -82,11 +82,14 @@ void _xlnk_reset();
 #include <string>
 #include <fstream>
 #include <iostream>
+#include "bsg_argparse.h"
+#include "bsg_printing.h"
+
 using namespace std;
 
 class bp_zynq_pl {
 public:
-  unsigned int BP_ZYNQ_PL_DEBUG = 1;
+  unsigned int BP_ZYNQ_PL_DEBUG = 0;
   unsigned int gp0_base_offset = 0;
   unsigned int gp1_base_offset = 0;
 
