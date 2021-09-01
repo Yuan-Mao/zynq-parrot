@@ -12,6 +12,8 @@
 #include <bitset>
 #include <cstdint>
 #include <iostream>
+#include <fstream>
+#include <thread>
 
 #include "bp_zynq_pl.h"
 
@@ -25,6 +27,8 @@
 void nbf_load(bp_zynq_pl *zpl, char *);
 bool decode_bp_output(bp_zynq_pl *zpl, int data);
 void report(bp_zynq_pl *zpl, char *, unsigned long long, unsigned long long);
+void monitor(bp_zynq_pl *zpl, char *);
+bool run = true;
 
 const char* metrics[] = { 
   "fe_stall", "fe_queue_full", "icache_access", "icache_rollback", "icache_miss",
@@ -248,6 +252,7 @@ int main(int argc, char **argv) {
   bsg_pr_dbg_ps("ps.cpp: finished nbf load\n");
   bsg_pr_info("ps.cpp: polling i/o\n");
 
+  std::thread t(monitor, zpl, argv[1]);
   while (1) {
     // keep reading as long as there is data
     data = zpl->axil_read(0x10 + GP0_ADDR_BASE);
@@ -257,6 +262,8 @@ int main(int argc, char **argv) {
     } else if (done)
       break;
   }
+  run = false;
+  t.join();
 
   unsigned long long mtime_stop = get_counter_64(zpl, 0xA0000000 + 0x30bff8);
   unsigned long long mcycle_stop = get_counter_64(zpl,0x30 + GP0_ADDR_BASE);
@@ -466,4 +473,28 @@ void report(bp_zynq_pl *zpl, char* nbf_filename
     file.close();
   }
   else printf("Cannot open report file: %s\n", filename);
+}
+
+void monitor(bp_zynq_pl *zpl, char* nbf_filename) {
+
+  char filename[100];
+  if(strrchr(nbf_filename, '/') != NULL)
+    strcpy(filename, 1 + strrchr(nbf_filename, '/'));
+  else
+    strcpy(filename, nbf_filename);
+  *strrchr(filename, '.') = '\0';
+  strcat(filename, ".ipc");
+  ofstream file(filename, ios::binary);
+
+  if(file.is_open()) {
+    while(run) {
+      std::this_thread::sleep_for(100ms);
+      unsigned long long mcycle = get_counter_64(zpl,0x30 + GP0_ADDR_BASE);
+      unsigned long long minstret = get_counter_64(zpl, 0x18 + GP0_ADDR_BASE);
+      file.write((char*)&mcycle, sizeof(mcycle));
+      file.write((char*)&minstret, sizeof(minstret));
+    }
+    file.close();
+  }
+  else printf("Cannot open ipc file: %s\n", filename);
 }
