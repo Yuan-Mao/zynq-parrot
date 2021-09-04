@@ -30,11 +30,20 @@ void report(bp_zynq_pl *zpl, char *, unsigned long long, unsigned long long);
 void monitor(bp_zynq_pl *zpl, char *);
 bool run = true;
 
+/*
 const char* metrics[] = { 
   "fe_stall", "fe_queue_full", "icache_access", "icache_rollback", "icache_miss",
   "taken", "ovr_taken", "ret", "over_ret", "fe_cmd_nonattaboy", "mispredict",
-  "mispredict_taken", "mispredict_ntaken", "mispredict_nonbr", "control_haz", "data_dep",
+  "mispredict_taken", "mispredict_ntaken", "mispredict_nonbr", "control_haz", "data_haz",
   "load_dep", "mul_dep", "struct_haz", "dcache_access", "dcache_rollback", "dcache_miss"
+};
+*/
+
+const char* metrics[] = {
+  "fe_queue_stall", "icache_rollback", "icache_miss", "icache_fence",
+  "taken_override", "ret_override", "fe_cmd", "fe_cmd_fence", "mispredict",
+  "control_haz", "long_haz", "data_haz", "load_dep", "mul_dep", "struct_haz",
+  "dcache_rollback", "dcache_miss", "unknown"
 };
 
 inline unsigned long long get_counter_64(bp_zynq_pl *zpl, unsigned int addr) {

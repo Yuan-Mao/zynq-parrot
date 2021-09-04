@@ -1,42 +1,40 @@
 `include "bp_common_defines.svh"
 `include "bp_top_defines.svh"
+`include "bp_be_defines.svh"
 
-module bp_core_counters
+module bp_stall_counters
   import bp_common_pkg::*;
   import bp_be_pkg::*;
   #(parameter bp_params_e bp_params_p = e_bp_default_cfg
     `declare_bp_proc_params(bp_params_p)
-
     , parameter width_p = 32
+
+    , localparam commit_pkt_width_lp = `bp_be_commit_pkt_width(vaddr_width_p, paddr_width_p)
     )
    (input clk_i
     , input reset_i
     , input freeze_i
 
-    , input [`BSG_SAFE_CLOG2(num_core_p)-1:0] mhartid_i
-
     // IF1 events
-    , input fe_stall_i
-    , input fe_queue_full_i
+    , input fe_queue_stall_i
 
     // IF2 events
-    , input icache_access_i
     , input icache_rollback_i
     , input icache_miss_i
+    , input icache_fence_i
     
-    , input taken_i
-    , input ovr_taken_i
-    , input ret_i
-    , input ovr_ret_i
+    , input taken_override_i
+    , input ret_override_i
 
     // Backwards ISS events
-    , input fe_cmd_nonattaboy_i
+    , input fe_cmd_i
+    , input fe_cmd_fence_i
 
     // ISD events
     , input mispredict_i
-    , input [1:0] mispredict_reason_i
 
     , input control_haz_i
+    , input long_haz_i
 
     , input data_haz_i
     , input load_dep_i
@@ -49,31 +47,29 @@ module bp_core_counters
     // MUL events
 
     // MEM events
-    , input dcache_access_i
     , input dcache_rollback_i
     , input dcache_miss_i
 
-    // output counters
-    , output [width_p-1:0] fe_stall_o
-    , output [width_p-1:0] fe_queue_full_o
+    // Trap packet
+    , input [commit_pkt_width_lp-1:0] commit_pkt_i
 
-    , output [width_p-1:0] icache_access_o
+    // output counters
+    , output [width_p-1:0] fe_queue_stall_o
+
     , output [width_p-1:0] icache_rollback_o
     , output [width_p-1:0] icache_miss_o
+    , output [width_p-1:0] icache_fence_o
 
-    , output [width_p-1:0] taken_o
-    , output [width_p-1:0] ovr_taken_o
-    , output [width_p-1:0] ret_o
-    , output [width_p-1:0] ovr_ret_o
+    , output [width_p-1:0] taken_override_o
+    , output [width_p-1:0] ret_override_o
 
-    , output [width_p-1:0] fe_cmd_nonattaboy_o
+    , output [width_p-1:0] fe_cmd_o
+    , output [width_p-1:0] fe_cmd_fence_o
 
     , output [width_p-1:0] mispredict_o
-    , output [width_p-1:0] mispredict_taken_o
-    , output [width_p-1:0] mispredict_ntaken_o
-    , output [width_p-1:0] mispredict_nonbr_o
 
     , output [width_p-1:0] control_haz_o
+    , output [width_p-1:0] long_haz_o
 
     , output [width_p-1:0] data_haz_o
     , output [width_p-1:0] load_dep_o
@@ -81,10 +77,48 @@ module bp_core_counters
 
     , output [width_p-1:0] struct_haz_o
 
-    , output [width_p-1:0] dcache_access_o
     , output [width_p-1:0] dcache_rollback_o
     , output [width_p-1:0] dcache_miss_o
+
+    , output [width_p-1:0] unknown_o
     );
+
+
+   bp_nonsynth_core_profiler
+    #(.bp_params_p(bp_params_p))
+    prof
+    (.clk_i          (clk_i)
+    ,.reset_i        (reset_i)
+    ,.freeze_i       (freeze_i)
+    ,.mhartid_i      ('0)
+    ,.fe_wait_stall  ('0)
+    ,.fe_queue_stall (fe_queue_stall_i)
+    ,.itlb_miss      ('0)
+    ,.icache_miss    (icache_miss_i)
+    ,.icache_rollback(icache_rollback_i)
+    ,.icache_fence   (icache_fence_i)
+    ,.branch_override(taken_override_i)
+    ,.ret_override   (ret_override_i)
+    ,.fe_cmd         (fe_cmd_i)
+    ,.fe_cmd_fence   (fe_cmd_fence_i)
+    ,.mispredict     (mispredict_i)
+    ,.control_haz    (control_haz_i)
+    ,.long_haz       (long_haz_i)
+    ,.data_haz       (data_haz_i)
+    ,.load_dep       (load_dep_i)
+    ,.mul_dep        (mul_dep_i)
+    ,.struct_haz     (struct_haz_i)
+    ,.dtlb_miss      ('0)
+    ,.dcache_miss    (dcache_miss_i)
+    ,.dcache_rollback(dcache_rollback_i)
+    ,.eret           ('0)
+    ,.exception      ('0)
+    ,._interrupt     ('0)
+    ,.reservation    ('0)
+    ,.commit_pkt     (commit_pkt_i)
+    );
+
+   wire stall_v = ~prof.commit_pkt_r.instret;
 
    bsg_counter_clear_up 
     #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
@@ -92,28 +126,8 @@ module bp_core_counters
     (.clk_i(clk_i)
     ,.reset_i(reset_i)
     ,.clear_i(freeze_i)
-    ,.up_i(fe_stall_i)
-    ,.count_o(fe_stall_o)
-    );
-
-   bsg_counter_clear_up
-    #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
-    cnt_1
-    (.clk_i(clk_i)
-    ,.reset_i(reset_i)
-    ,.clear_i(freeze_i)
-    ,.up_i(fe_queue_full_i)
-    ,.count_o(fe_queue_full_o)
-    );
-
-   bsg_counter_clear_up
-    #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
-    cnt_2
-    (.clk_i(clk_i)
-    ,.reset_i(reset_i)
-    ,.clear_i(freeze_i)
-    ,.up_i(icache_access_i)
-    ,.count_o(icache_access_o)
+    ,.up_i(stall_v & (prof.stall_reason_enum == fe_queue_stall))
+    ,.count_o(fe_queue_stall_o)
     );
 
    bsg_counter_clear_up
@@ -122,7 +136,7 @@ module bp_core_counters
     (.clk_i(clk_i)
     ,.reset_i(reset_i)
     ,.clear_i(freeze_i)
-    ,.up_i(icache_rollback_i)
+    ,.up_i(stall_v & (prof.stall_reason_enum == icache_rollback))
     ,.count_o(icache_rollback_o)
     );
 
@@ -132,18 +146,18 @@ module bp_core_counters
     (.clk_i(clk_i)
     ,.reset_i(reset_i)
     ,.clear_i(freeze_i)
-    ,.up_i(icache_miss_i)
+    ,.up_i(stall_v & (prof.stall_reason_enum == icache_miss))
     ,.count_o(icache_miss_o)
     );
 
    bsg_counter_clear_up
     #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
-    cnt_5
+    cnt_41
     (.clk_i(clk_i)
     ,.reset_i(reset_i)
     ,.clear_i(freeze_i)
-    ,.up_i(taken_i)
-    ,.count_o(taken_o)
+    ,.up_i(stall_v & (prof.stall_reason_enum == icache_fence))
+    ,.count_o(icache_fence_o)
     );
 
    bsg_counter_clear_up
@@ -152,18 +166,8 @@ module bp_core_counters
     (.clk_i(clk_i)
     ,.reset_i(reset_i)
     ,.clear_i(freeze_i)
-    ,.up_i(ovr_taken_i)
-    ,.count_o(ovr_taken_o)
-    );
-
-   bsg_counter_clear_up
-    #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
-    cnt_7
-    (.clk_i(clk_i)
-    ,.reset_i(reset_i)
-    ,.clear_i(freeze_i)
-    ,.up_i(ret_i)
-    ,.count_o(ret_o)
+    ,.up_i(stall_v & (prof.stall_reason_enum == branch_override))
+    ,.count_o(taken_override_o)
     );
 
    bsg_counter_clear_up
@@ -172,8 +176,8 @@ module bp_core_counters
     (.clk_i(clk_i)
     ,.reset_i(reset_i)
     ,.clear_i(freeze_i)
-    ,.up_i(ovr_ret_i)
-    ,.count_o(ovr_ret_o)
+    ,.up_i(stall_v & (prof.stall_reason_enum == ret_override))
+    ,.count_o(ret_override_o)
     );
 
    bsg_counter_clear_up
@@ -182,8 +186,18 @@ module bp_core_counters
     (.clk_i(clk_i)
     ,.reset_i(reset_i)
     ,.clear_i(freeze_i)
-    ,.up_i(fe_cmd_nonattaboy_i)
-    ,.count_o(fe_cmd_nonattaboy_o)
+    ,.up_i(stall_v & (prof.stall_reason_enum == fe_cmd))
+    ,.count_o(fe_cmd_o)
+    );
+
+   bsg_counter_clear_up
+    #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
+    cnt_91
+    (.clk_i(clk_i)
+    ,.reset_i(reset_i)
+    ,.clear_i(freeze_i)
+    ,.up_i(stall_v & (prof.stall_reason_enum == fe_cmd_fence))
+    ,.count_o(fe_cmd_fence_o)
     );
 
    bsg_counter_clear_up
@@ -192,48 +206,8 @@ module bp_core_counters
     (.clk_i(clk_i)
     ,.reset_i(reset_i)
     ,.clear_i(freeze_i)
-    ,.up_i(mispredict_i)
+    ,.up_i(stall_v & (prof.stall_reason_enum == mispredict))
     ,.count_o(mispredict_o)
-    );
-
-   bsg_counter_clear_up
-    #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
-    cnt_11
-    (.clk_i(clk_i)
-    ,.reset_i(reset_i)
-    ,.clear_i(freeze_i)
-    ,.up_i(mispredict_i & (mispredict_reason_i == e_incorrect_pred_taken))
-    ,.count_o(mispredict_taken_o)
-    );
-
-   bsg_counter_clear_up
-    #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
-    cnt_12
-    (.clk_i(clk_i)
-    ,.reset_i(reset_i)
-    ,.clear_i(freeze_i)
-    ,.up_i(mispredict_i & (mispredict_reason_i == e_incorrect_pred_ntaken))
-    ,.count_o(mispredict_ntaken_o)
-    );
-
-   bsg_counter_clear_up
-    #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
-    cnt_13
-    (.clk_i(clk_i)
-    ,.reset_i(reset_i)
-    ,.clear_i(freeze_i)
-    ,.up_i(mispredict_i & (mispredict_reason_i == e_not_a_branch))
-    ,.count_o(mispredict_nonbr_o)
-    );
-
-   bsg_counter_clear_up
-    #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
-    cnt_14
-    (.clk_i(clk_i)
-    ,.reset_i(reset_i)
-    ,.clear_i(freeze_i)
-    ,.up_i(dcache_access_i)
-    ,.count_o(dcache_access_o)
     );
 
    bsg_counter_clear_up
@@ -242,7 +216,7 @@ module bp_core_counters
     (.clk_i(clk_i)
     ,.reset_i(reset_i)
     ,.clear_i(freeze_i)
-    ,.up_i(dcache_rollback_i)
+    ,.up_i(stall_v & (prof.stall_reason_enum == dcache_rollback))
     ,.count_o(dcache_rollback_o)
     );
 
@@ -252,7 +226,7 @@ module bp_core_counters
     (.clk_i(clk_i)
     ,.reset_i(reset_i)
     ,.clear_i(freeze_i)
-    ,.up_i(dcache_miss_i)
+    ,.up_i(stall_v & (prof.stall_reason_enum == dcache_miss))
     ,.count_o(dcache_miss_o)
     );
 
@@ -262,8 +236,18 @@ module bp_core_counters
     (.clk_i(clk_i)
     ,.reset_i(reset_i)
     ,.clear_i(freeze_i)
-    ,.up_i(control_haz_i)
+    ,.up_i(stall_v & (prof.stall_reason_enum == control_haz))
     ,.count_o(control_haz_o)
+    );
+
+   bsg_counter_clear_up
+    #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
+    cnt_171
+    (.clk_i(clk_i)
+    ,.reset_i(reset_i)
+    ,.clear_i(freeze_i)
+    ,.up_i(stall_v & (prof.stall_reason_enum == long_haz))
+    ,.count_o(long_haz_o)
     );
 
    bsg_counter_clear_up
@@ -272,7 +256,7 @@ module bp_core_counters
     (.clk_i(clk_i)
     ,.reset_i(reset_i)
     ,.clear_i(freeze_i)
-    ,.up_i(data_haz_i)
+    ,.up_i(stall_v & (prof.stall_reason_enum == data_haz))
     ,.count_o(data_haz_o)
     );
 
@@ -282,7 +266,7 @@ module bp_core_counters
     (.clk_i(clk_i)
     ,.reset_i(reset_i)
     ,.clear_i(freeze_i)
-    ,.up_i(load_dep_i)
+    ,.up_i(stall_v & (prof.stall_reason_enum == load_dep))
     ,.count_o(load_dep_o)
     );
 
@@ -292,7 +276,7 @@ module bp_core_counters
     (.clk_i(clk_i)
     ,.reset_i(reset_i)
     ,.clear_i(freeze_i)
-    ,.up_i(mul_dep_i)
+    ,.up_i(stall_v & (prof.stall_reason_enum == mul_dep))
     ,.count_o(mul_dep_o)
     );
 
@@ -302,8 +286,18 @@ module bp_core_counters
     (.clk_i(clk_i)
     ,.reset_i(reset_i)
     ,.clear_i(freeze_i)
-    ,.up_i(struct_haz_i)
+    ,.up_i(stall_v & (prof.stall_reason_enum == struct_haz))
     ,.count_o(struct_haz_o)
+    );
+
+   bsg_counter_clear_up
+    #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
+    cnt_22
+    (.clk_i(clk_i)
+    ,.reset_i(reset_i)
+    ,.clear_i(freeze_i)
+    ,.up_i(stall_v & (prof.stall_reason_enum == unknown))
+    ,.count_o(unknown_o)
     );
 
 endmodule

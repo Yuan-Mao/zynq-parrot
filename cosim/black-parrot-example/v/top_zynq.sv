@@ -123,14 +123,15 @@ module top_zynq
     ,input wire [1:0]                           m00_axi_rresp
     );
 
+/*
    localparam counter_num_p = 22;
    logic [counter_num_p*64-1:0] counter_data;
 
-   bp_core_counters
+   bp_event_counters
     #(.bp_params_p(bp_params_p)
      ,.width_p(64)
      )
-     core_counters
+     event_counters
      (.clk_i(s01_axi_aclk)
      ,.reset_i(bp_reset_li)
      ,.freeze_i(blackparrot.unicore.unicore_lite.core_minimal.be.calculator.pipe_sys.csr.cfg_bus_cast_i.freeze)
@@ -205,7 +206,78 @@ module top_zynq
      ,.dcache_rollback_o      (counter_data[21*64-1 : 20*64])
      ,.dcache_miss_o          (counter_data[22*64-1 : 21*64])
      );
+*/
 
+   localparam counter_num_p = 18;
+   logic [counter_num_p*64-1:0] counter_data;
+
+   bp_stall_counters
+    #(.bp_params_p(bp_params_p)
+     ,.width_p(64)
+     )
+     stall_counters
+     (.clk_i(s01_axi_aclk)
+     ,.reset_i(bp_reset_li)
+     ,.freeze_i(blackparrot.unicore.unicore_lite.core_minimal.be.calculator.pipe_sys.csr.cfg_bus_cast_i.freeze)
+
+     ,.fe_queue_stall_i(~blackparrot.unicore.unicore_lite.core_minimal.fe.fe_queue_ready_i)
+
+     ,.icache_rollback_i(blackparrot.unicore.unicore_lite.core_minimal.fe.icache_miss)
+     ,.icache_miss_i(~blackparrot.unicore.unicore_lite.core_minimal.fe.icache.ready_o)
+     ,.icache_fence_i(blackparrot.unicore.unicore_lite.core_minimal.fe.icache.fencei_req)
+
+     ,.taken_override_i(blackparrot.unicore.unicore_lite.core_minimal.fe.pc_gen.ovr_taken)
+     ,.ret_override_i(blackparrot.unicore.unicore_lite.core_minimal.fe.pc_gen.ovr_ret)
+
+     ,.fe_cmd_i(blackparrot.unicore.unicore_lite.core_minimal.fe.fe_cmd_yumi_o & ~blackparrot.unicore.unicore_lite.core_minimal.fe.attaboy_v)
+     ,.fe_cmd_fence_i(blackparrot.unicore.unicore_lite.core_minimal.be.director.suppress_iss_o)
+
+     ,.mispredict_i(blackparrot.unicore.unicore_lite.core_minimal.be.director.npc_mismatch_v)
+
+     ,.dcache_rollback_i(blackparrot.unicore.unicore_lite.core_minimal.be.scheduler.commit_pkt_cast_i.rollback)
+     ,.dcache_miss_i(~blackparrot.unicore.unicore_lite.core_minimal.be.calculator.pipe_mem.dcache.ready_o)
+
+     ,.control_haz_i(blackparrot.unicore.unicore_lite.core_minimal.be.detector.control_haz_v)
+     ,.long_haz_i(blackparrot.unicore.unicore_lite.core_minimal.be.detector.long_haz_v)
+
+     ,.data_haz_i(blackparrot.unicore.unicore_lite.core_minimal.be.detector.data_haz_v)
+     ,.load_dep_i((blackparrot.unicore.unicore_lite.core_minimal.be.detector.dep_status_r[0].emem_iwb_v
+                   | blackparrot.unicore.unicore_lite.core_minimal.be.detector.dep_status_r[0].fmem_iwb_v
+                   | blackparrot.unicore.unicore_lite.core_minimal.be.detector.dep_status_r[1].fmem_iwb_v
+                   | blackparrot.unicore.unicore_lite.core_minimal.be.detector.dep_status_r[0].emem_fwb_v
+                   | blackparrot.unicore.unicore_lite.core_minimal.be.detector.dep_status_r[0].fmem_fwb_v
+                   | blackparrot.unicore.unicore_lite.core_minimal.be.detector.dep_status_r[1].fmem_fwb_v
+                   ) & blackparrot.unicore.unicore_lite.core_minimal.be.detector.data_haz_v
+                  )
+     ,.mul_dep_i((blackparrot.unicore.unicore_lite.core_minimal.be.detector.dep_status_r[0].mul_iwb_v
+                  | blackparrot.unicore.unicore_lite.core_minimal.be.detector.dep_status_r[1].mul_iwb_v
+                  | blackparrot.unicore.unicore_lite.core_minimal.be.detector.dep_status_r[2].mul_iwb_v
+                  ) & blackparrot.unicore.unicore_lite.core_minimal.be.detector.data_haz_v
+                 )
+
+     ,.struct_haz_i(blackparrot.unicore.unicore_lite.core_minimal.be.detector.struct_haz_v)
+
+     ,.commit_pkt_i(blackparrot.unicore.unicore_lite.core_minimal.be.calculator.commit_pkt_cast_o)
+
+     ,.fe_queue_stall_o       (counter_data[1*64-1 : 0*64])
+     ,.icache_rollback_o      (counter_data[2*64-1 : 1*64])
+     ,.icache_miss_o          (counter_data[3*64-1 : 2*64])
+     ,.icache_fence_o         (counter_data[4*64-1 : 3*64])
+     ,.taken_override_o       (counter_data[5*64-1 : 4*64])
+     ,.ret_override_o         (counter_data[6*64-1 : 5*64])
+     ,.fe_cmd_o               (counter_data[7*64-1 : 6*64])
+     ,.fe_cmd_fence_o         (counter_data[8*64-1 : 7*64])
+     ,.mispredict_o           (counter_data[9*64-1 : 8*64])
+     ,.control_haz_o          (counter_data[10*64-1 : 9*64])
+     ,.long_haz_o             (counter_data[11*64-1 : 10*64])
+     ,.data_haz_o             (counter_data[12*64-1 : 11*64])
+     ,.load_dep_o             (counter_data[13*64-1 : 12*64])
+     ,.mul_dep_o              (counter_data[14*64-1 : 13*64])
+     ,.struct_haz_o           (counter_data[15*64-1 : 14*64])
+     ,.dcache_rollback_o      (counter_data[16*64-1 : 15*64])
+     ,.dcache_miss_o          (counter_data[17*64-1 : 16*64])
+     ,.unknown_o              (counter_data[18*64-1 : 17*64])
+     );
 
    logic [2:0][C_S00_AXI_DATA_WIDTH-1:0]        csr_data_lo;
    logic [C_S00_AXI_DATA_WIDTH-1:0]             pl_to_ps_fifo_data_li, ps_to_pl_fifo_data_lo;
