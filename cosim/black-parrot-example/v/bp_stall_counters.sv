@@ -37,8 +37,14 @@ module bp_stall_counters
     , input long_haz_i
 
     , input data_haz_i
+    , input aux_dep_i
     , input load_dep_i
     , input mul_dep_i
+    , input fma_dep_i
+    , input sb_iraw_dep_i
+    , input sb_fraw_dep_i
+    , input sb_iwaw_dep_i
+    , input sb_fwaw_dep_i
 
     , input struct_haz_i
 
@@ -72,8 +78,14 @@ module bp_stall_counters
     , output [width_p-1:0] long_haz_o
 
     , output [width_p-1:0] data_haz_o
+    , output [width_p-1:0] aux_dep_o
     , output [width_p-1:0] load_dep_o
     , output [width_p-1:0] mul_dep_o
+    , output [width_p-1:0] fma_dep_o
+    , output [width_p-1:0] sb_iraw_dep_o
+    , output [width_p-1:0] sb_fraw_dep_o
+    , output [width_p-1:0] sb_iwaw_dep_o
+    , output [width_p-1:0] sb_fwaw_dep_o
 
     , output [width_p-1:0] struct_haz_o
 
@@ -105,8 +117,14 @@ module bp_stall_counters
     ,.control_haz    (control_haz_i)
     ,.long_haz       (long_haz_i)
     ,.data_haz       (data_haz_i)
+    ,.aux_dep        (aux_dep_i)
     ,.load_dep       (load_dep_i)
     ,.mul_dep        (mul_dep_i)
+    ,.fma_dep        (fma_dep_i)
+    ,.sb_iraw_dep    (sb_iraw_dep_i)
+    ,.sb_fraw_dep    (sb_fraw_dep_i)
+    ,.sb_iwaw_dep    (sb_iwaw_dep_i)
+    ,.sb_fwaw_dep    (sb_fwaw_dep_i)
     ,.struct_haz     (struct_haz_i)
     ,.dtlb_miss      ('0)
     ,.dcache_miss    (dcache_miss_i)
@@ -122,7 +140,7 @@ module bp_stall_counters
 
    bsg_counter_clear_up 
     #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
-    cnt_0
+    fe_queue_stall_cnt
     (.clk_i(clk_i)
     ,.reset_i(reset_i)
     ,.clear_i(freeze_i)
@@ -132,7 +150,7 @@ module bp_stall_counters
 
    bsg_counter_clear_up
     #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
-    cnt_3
+    icache_rollback_cnt
     (.clk_i(clk_i)
     ,.reset_i(reset_i)
     ,.clear_i(freeze_i)
@@ -142,7 +160,7 @@ module bp_stall_counters
 
    bsg_counter_clear_up
     #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
-    cnt_4
+    icache_miss_cnt
     (.clk_i(clk_i)
     ,.reset_i(reset_i)
     ,.clear_i(freeze_i)
@@ -152,7 +170,7 @@ module bp_stall_counters
 
    bsg_counter_clear_up
     #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
-    cnt_41
+    icache_fence_cnt
     (.clk_i(clk_i)
     ,.reset_i(reset_i)
     ,.clear_i(freeze_i)
@@ -162,7 +180,7 @@ module bp_stall_counters
 
    bsg_counter_clear_up
     #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
-    cnt_6
+    taken_override_cnt
     (.clk_i(clk_i)
     ,.reset_i(reset_i)
     ,.clear_i(freeze_i)
@@ -172,7 +190,7 @@ module bp_stall_counters
 
    bsg_counter_clear_up
     #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
-    cnt_8
+    ret_override_cnt
     (.clk_i(clk_i)
     ,.reset_i(reset_i)
     ,.clear_i(freeze_i)
@@ -182,7 +200,7 @@ module bp_stall_counters
 
    bsg_counter_clear_up
     #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
-    cnt_9
+    fe_cmd_cnt
     (.clk_i(clk_i)
     ,.reset_i(reset_i)
     ,.clear_i(freeze_i)
@@ -192,7 +210,7 @@ module bp_stall_counters
 
    bsg_counter_clear_up
     #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
-    cnt_91
+    fe_cmd_fence_cnt
     (.clk_i(clk_i)
     ,.reset_i(reset_i)
     ,.clear_i(freeze_i)
@@ -202,7 +220,7 @@ module bp_stall_counters
 
    bsg_counter_clear_up
     #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
-    cnt_10
+    mispredict_cnt
     (.clk_i(clk_i)
     ,.reset_i(reset_i)
     ,.clear_i(freeze_i)
@@ -212,7 +230,7 @@ module bp_stall_counters
 
    bsg_counter_clear_up
     #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
-    cnt_15
+    dcache_rollback_cnt
     (.clk_i(clk_i)
     ,.reset_i(reset_i)
     ,.clear_i(freeze_i)
@@ -222,7 +240,7 @@ module bp_stall_counters
 
    bsg_counter_clear_up
     #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
-    cnt_16
+    dcache_miss_cnt
     (.clk_i(clk_i)
     ,.reset_i(reset_i)
     ,.clear_i(freeze_i)
@@ -232,7 +250,7 @@ module bp_stall_counters
 
    bsg_counter_clear_up
     #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
-    cnt_17
+    control_haz_cnt
     (.clk_i(clk_i)
     ,.reset_i(reset_i)
     ,.clear_i(freeze_i)
@@ -242,7 +260,7 @@ module bp_stall_counters
 
    bsg_counter_clear_up
     #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
-    cnt_171
+    long_haz_cnt
     (.clk_i(clk_i)
     ,.reset_i(reset_i)
     ,.clear_i(freeze_i)
@@ -252,7 +270,7 @@ module bp_stall_counters
 
    bsg_counter_clear_up
     #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
-    cnt_18
+    data_haz_cnt
     (.clk_i(clk_i)
     ,.reset_i(reset_i)
     ,.clear_i(freeze_i)
@@ -262,7 +280,17 @@ module bp_stall_counters
 
    bsg_counter_clear_up
     #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
-    cnt_19
+    aux_dep_cnt
+    (.clk_i(clk_i)
+    ,.reset_i(reset_i)
+    ,.clear_i(freeze_i)
+    ,.up_i(stall_v & (prof.stall_reason_enum == aux_dep))
+    ,.count_o(aux_dep_o)
+    );
+
+   bsg_counter_clear_up
+    #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
+    load_dep_cnt
     (.clk_i(clk_i)
     ,.reset_i(reset_i)
     ,.clear_i(freeze_i)
@@ -272,7 +300,7 @@ module bp_stall_counters
 
    bsg_counter_clear_up
     #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
-    cnt_20
+    mul_dep_cnt
     (.clk_i(clk_i)
     ,.reset_i(reset_i)
     ,.clear_i(freeze_i)
@@ -282,7 +310,57 @@ module bp_stall_counters
 
    bsg_counter_clear_up
     #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
-    cnt_21
+    fma_dep_cnt
+    (.clk_i(clk_i)
+    ,.reset_i(reset_i)
+    ,.clear_i(freeze_i)
+    ,.up_i(stall_v & (prof.stall_reason_enum == fma_dep))
+    ,.count_o(fma_dep_o)
+    );
+
+   bsg_counter_clear_up
+    #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
+    sb_iraw_dep_cnt
+    (.clk_i(clk_i)
+    ,.reset_i(reset_i)
+    ,.clear_i(freeze_i)
+    ,.up_i(stall_v & (prof.stall_reason_enum == sb_iraw_dep))
+    ,.count_o(sb_iraw_dep_o)
+    );
+
+   bsg_counter_clear_up
+    #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
+    sb_fraw_dep_cnt
+    (.clk_i(clk_i)
+    ,.reset_i(reset_i)
+    ,.clear_i(freeze_i)
+    ,.up_i(stall_v & (prof.stall_reason_enum == sb_fraw_dep))
+    ,.count_o(sb_fraw_dep_o)
+    );
+
+   bsg_counter_clear_up
+    #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
+    sb_iwaw_dep_cnt
+    (.clk_i(clk_i)
+    ,.reset_i(reset_i)
+    ,.clear_i(freeze_i)
+    ,.up_i(stall_v & (prof.stall_reason_enum == sb_iwaw_dep))
+    ,.count_o(sb_iwaw_dep_o)
+    );
+
+   bsg_counter_clear_up
+    #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
+    sb_fwaw_dep_cnt
+    (.clk_i(clk_i)
+    ,.reset_i(reset_i)
+    ,.clear_i(freeze_i)
+    ,.up_i(stall_v & (prof.stall_reason_enum == sb_fwaw_dep))
+    ,.count_o(sb_fwaw_dep_o)
+    );
+
+   bsg_counter_clear_up
+    #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
+    struct_haz_cnt
     (.clk_i(clk_i)
     ,.reset_i(reset_i)
     ,.clear_i(freeze_i)
@@ -292,7 +370,7 @@ module bp_stall_counters
 
    bsg_counter_clear_up
     #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
-    cnt_22
+    unknown_cnt
     (.clk_i(clk_i)
     ,.reset_i(reset_i)
     ,.clear_i(freeze_i)

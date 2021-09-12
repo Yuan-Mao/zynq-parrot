@@ -42,8 +42,13 @@ const char* metrics[] = {
 const char* metrics[] = {
   "fe_queue_stall", "icache_rollback", "icache_miss", "icache_fence",
   "taken_override", "ret_override", "fe_cmd", "fe_cmd_fence", "mispredict",
-  "control_haz", "long_haz", "data_haz", "load_dep", "mul_dep", "struct_haz",
-  "dcache_rollback", "dcache_miss", "unknown"
+  "control_haz", "long_haz", "data_haz",
+  "aux_dep", "load_dep", "mul_dep", "fma_dep", "sb_iraw_dep", "sb_fraw_dep", "sb_iwaw_dep", "sb_fwaw_dep",
+  "struct_haz", "dcache_rollback", "dcache_miss", "unknown"
+};
+
+const char* samples[] = {
+  "load_dep", "mul_dep", "fma_dep", "sb_iraw_dep", "sb_fraw_dep", "sb_iwaw_dep", "sb_fwaw_dep"
 };
 
 inline unsigned long long get_counter_64(bp_zynq_pl *zpl, unsigned int addr) {
@@ -492,8 +497,22 @@ void monitor(bp_zynq_pl *zpl, char* nbf_filename) {
   else
     strcpy(filename, nbf_filename);
   *strrchr(filename, '.') = '\0';
-  strcat(filename, ".ipc");
+  strcat(filename, ".sample");
   ofstream file(filename, ios::binary);
+
+  int sampleIdx[sizeof(samples)/sizeof(samples[0])];
+  for(int i=0; i<sizeof(samples)/sizeof(samples[0]); i++) {
+    bool found = false;
+    for(int j=0; j<sizeof(metrics)/sizeof(metrics[0]); j++) {
+      if(!strcmp(samples[i], metrics[j])) {
+        sampleIdx[i] = j;
+        found = true;
+        break;
+      }
+    }
+    if(!found)
+      printf("Cannot find sample %s index!", samples[i]);
+  }
 
   if(file.is_open()) {
     while(run) {
@@ -502,6 +521,10 @@ void monitor(bp_zynq_pl *zpl, char* nbf_filename) {
       unsigned long long minstret = get_counter_64(zpl, 0x18 + GP0_ADDR_BASE);
       file.write((char*)&mcycle, sizeof(mcycle));
       file.write((char*)&minstret, sizeof(minstret));
+      for(int i=0; i<sizeof(samples)/sizeof(samples[0]); i++) {
+        unsigned long long sample = get_counter_64(zpl,GP0_ADDR_BASE + 0x38 + 8*sampleIdx[i]);
+        file.write((char*)&sample, sizeof(sample));
+      }
     }
     file.close();
   }
