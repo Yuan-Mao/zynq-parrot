@@ -16,6 +16,7 @@ module bp_stall_counters
     , input freeze_i
 
     // IF1 events
+    , input fe_wait_stall_i
     , input fe_queue_stall_i
 
     // IF2 events
@@ -47,6 +48,9 @@ module bp_stall_counters
     , input sb_fwaw_dep_i
 
     , input struct_haz_i
+    , input long_busy_i
+    , input long_i_busy_i
+    , input long_f_busy_i
 
     // ALU events
 
@@ -60,6 +64,7 @@ module bp_stall_counters
     , input [commit_pkt_width_lp-1:0] commit_pkt_i
 
     // output counters
+    , output [width_p-1:0] fe_wait_stall_o
     , output [width_p-1:0] fe_queue_stall_o
 
     , output [width_p-1:0] icache_rollback_o
@@ -88,13 +93,21 @@ module bp_stall_counters
     , output [width_p-1:0] sb_fwaw_dep_o
 
     , output [width_p-1:0] struct_haz_o
+    , output [width_p-1:0] long_i_busy_o
+    , output [width_p-1:0] long_f_busy_o
+    , output [width_p-1:0] long_if_busy_o
 
     , output [width_p-1:0] dcache_rollback_o
     , output [width_p-1:0] dcache_miss_o
 
     , output [width_p-1:0] unknown_o
-    );
 
+    , output [width_p-1:0] mem_instr_o
+    , output [width_p-1:0] aux_instr_o
+    , output [width_p-1:0] fma_instr_o
+    , output [width_p-1:0] ilong_instr_o
+    , output [width_p-1:0] flong_instr_o
+    );
 
    bp_nonsynth_core_profiler
     #(.bp_params_p(bp_params_p))
@@ -103,7 +116,7 @@ module bp_stall_counters
     ,.reset_i        (reset_i)
     ,.freeze_i       (freeze_i)
     ,.mhartid_i      ('0)
-    ,.fe_wait_stall  ('0)
+    ,.fe_wait_stall  (fe_wait_stall_i)
     ,.fe_queue_stall (fe_queue_stall_i)
     ,.itlb_miss      ('0)
     ,.icache_miss    (icache_miss_i)
@@ -126,6 +139,9 @@ module bp_stall_counters
     ,.sb_iwaw_dep    (sb_iwaw_dep_i)
     ,.sb_fwaw_dep    (sb_fwaw_dep_i)
     ,.struct_haz     (struct_haz_i)
+    ,.long_i_busy    (long_busy_i & long_i_busy_i)
+    ,.long_f_busy    (long_busy_i & long_f_busy_i)
+    ,.long_if_busy   (long_busy_i & ~(long_i_busy_i | long_f_busy_i))
     ,.dtlb_miss      ('0)
     ,.dcache_miss    (dcache_miss_i)
     ,.dcache_rollback(dcache_rollback_i)
@@ -137,6 +153,16 @@ module bp_stall_counters
     );
 
    wire stall_v = ~prof.commit_pkt_r.instret;
+
+   bsg_counter_clear_up
+    #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
+    fe_wait_stall_cnt
+    (.clk_i(clk_i)
+    ,.reset_i(reset_i)
+    ,.clear_i(freeze_i)
+    ,.up_i(stall_v & (prof.stall_reason_enum == fe_wait_stall))
+    ,.count_o(fe_wait_stall_o)
+    );
 
    bsg_counter_clear_up 
     #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
@@ -370,12 +396,105 @@ module bp_stall_counters
 
    bsg_counter_clear_up
     #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
+    long_i_busy_cnt
+    (.clk_i(clk_i)
+    ,.reset_i(reset_i)
+    ,.clear_i(freeze_i)
+    ,.up_i(stall_v & (prof.stall_reason_enum == long_i_busy))
+    ,.count_o(long_i_busy_o)
+    );
+
+   bsg_counter_clear_up
+    #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
+    long_f_busy_cnt
+    (.clk_i(clk_i)
+    ,.reset_i(reset_i)
+    ,.clear_i(freeze_i)
+    ,.up_i(stall_v & (prof.stall_reason_enum == long_f_busy))
+    ,.count_o(long_f_busy_o)
+    );
+
+   bsg_counter_clear_up
+    #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
+    long_if_busy_cnt
+    (.clk_i(clk_i)
+    ,.reset_i(reset_i)
+    ,.clear_i(freeze_i)
+    ,.up_i(stall_v & (prof.stall_reason_enum == long_if_busy))
+    ,.count_o(long_if_busy_o)
+    );
+
+   bsg_counter_clear_up
+    #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
     unknown_cnt
     (.clk_i(clk_i)
     ,.reset_i(reset_i)
     ,.clear_i(freeze_i)
     ,.up_i(stall_v & (prof.stall_reason_enum == unknown))
     ,.count_o(unknown_o)
+    );
+
+   rv64_instr_fmatype_s instr;
+   assign instr = prof.commit_pkt_r.instr;
+
+   wire instret       = prof.commit_pkt_r.instret;
+   wire ilong_instr_v = (instr.opcode inside {`RV64_OP_OP, `RV64_OP_32_OP})
+                      & (instr inside {`RV64_DIV, `RV64_DIVU, `RV64_DIVW, `RV64_DIVUW ,`RV64_REM, `RV64_REMU, `RV64_REMW, `RV64_REMUW});
+   wire flong_instr_v = (instr.opcode == `RV64_FP_OP) & (instr inside {`RV64_FDIV_S, `RV64_FDIV_D, `RV64_FSQRT_S, `RV64_FSQRT_D});
+   wire fma_instr_v   = (instr.opcode inside {`RV64_FMADD_OP, `RV64_FMSUB_OP, `RV64_FNMSUB_OP, `RV64_FNMADD_OP})
+                      | ((instr.opcode == `RV64_FP_OP)
+                      & (instr inside {`RV64_FADD_S, `RV64_FADD_D, `RV64_FSUB_S, `RV64_FSUB_D, `RV64_FMUL_S, `RV64_FMUL_D}));
+   wire aux_instr_v   = (instr.opcode == `RV64_FP_OP) & ~fma_instr_v & ~flong_instr_v;
+   wire mem_instr_v   = (instr.opcode inside {`RV64_LOAD_OP, `RV64_FLOAD_OP, `RV64_STORE_OP, `RV64_FSTORE_OP, `RV64_MISC_MEM_OP, `RV64_AMO_OP});
+
+   bsg_counter_clear_up
+    #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
+    mem_instr_cnt
+    (.clk_i(clk_i)
+    ,.reset_i(reset_i)
+    ,.clear_i(freeze_i)
+    ,.up_i(instret & mem_instr_v)
+    ,.count_o(mem_instr_o)
+    );
+
+   bsg_counter_clear_up
+    #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
+    aux_instr_cnt
+    (.clk_i(clk_i)
+    ,.reset_i(reset_i)
+    ,.clear_i(freeze_i)
+    ,.up_i(instret & aux_instr_v)
+    ,.count_o(aux_instr_o)
+    );
+
+   bsg_counter_clear_up
+    #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
+    fma_instr_cnt
+    (.clk_i(clk_i)
+    ,.reset_i(reset_i)
+    ,.clear_i(freeze_i)
+    ,.up_i(instret & fma_instr_v)
+    ,.count_o(fma_instr_o)
+    );
+
+   bsg_counter_clear_up
+    #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
+    ilong_instr_cnt
+    (.clk_i(clk_i)
+    ,.reset_i(reset_i)
+    ,.clear_i(freeze_i)
+    ,.up_i(instret & ilong_instr_v)
+    ,.count_o(ilong_instr_o)
+    );
+
+   bsg_counter_clear_up
+    #(.max_val_p((width_p+1)'(2**width_p-1)), .init_val_p(0))
+    flong_instr_cnt
+    (.clk_i(clk_i)
+    ,.reset_i(reset_i)
+    ,.clear_i(freeze_i)
+    ,.up_i(instret & flong_instr_v)
+    ,.count_o(flong_instr_o)
     );
 
 endmodule

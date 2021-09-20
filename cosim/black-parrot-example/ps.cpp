@@ -40,11 +40,13 @@ const char* metrics[] = {
 */
 
 const char* metrics[] = {
-  "fe_queue_stall", "icache_rollback", "icache_miss", "icache_fence",
+  "fe_wait_stall", "fe_queue_stall", "icache_rollback", "icache_miss", "icache_fence",
   "taken_override", "ret_override", "fe_cmd", "fe_cmd_fence", "mispredict",
   "control_haz", "long_haz", "data_haz",
   "aux_dep", "load_dep", "mul_dep", "fma_dep", "sb_iraw_dep", "sb_fraw_dep", "sb_iwaw_dep", "sb_fwaw_dep",
-  "struct_haz", "dcache_rollback", "dcache_miss", "unknown"
+  "struct_haz", "long_i_busy", "long_f_busy", "long_if_busy",
+  "dcache_rollback", "dcache_miss", "unknown",
+  "mem_instr", "aux_instr", "fma_instr", "ilong_instr", "flong_instr"
 };
 
 const char* samples[] = {
