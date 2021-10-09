@@ -16,6 +16,9 @@
 #include "bsg_nonsynth_dpi_gpio.hpp"
 #include "zynq_headers.h"
 
+#include "verilated_fst_c.h"
+#include "verilated_cov.h"
+
 using namespace std;
 using namespace bsg_nonsynth_dpi;
 
@@ -24,6 +27,7 @@ using namespace bsg_nonsynth_dpi;
 
 class bp_zynq_pl {
   static Vtop *tb;
+  static VerilatedFstC *wf;
 
   static std::unique_ptr<axil<GP0_ADDR_WIDTH, GP0_DATA_WIDTH> > axi_gp0;
   static std::unique_ptr<axil<GP1_ADDR_WIDTH, GP1_DATA_WIDTH> > axi_gp1;
@@ -37,8 +41,10 @@ public:
   static void tick(void) {
     bsg_timekeeper::next();
     tb->eval();
+    wf->dump(sc_time_stamp());
     bsg_timekeeper::next();
     tb->eval();
+    wf->dump(sc_time_stamp());
   }
 
   static void done(void) { printf("bp_zynq_pl: done() called, exiting\n"); }
@@ -51,6 +57,10 @@ public:
     Verilated::traceEverOn(true);
 
     tb = new Vtop();
+
+    wf = new VerilatedFstC;
+    tb->trace(wf, 10);
+    wf->open("dump.fst");
 
     // Tick once to register clock generators
     tb->eval();
@@ -71,6 +81,8 @@ public:
   ~bp_zynq_pl(void) {
     // Causes segfault, double free?
     // delete tb;
+    std::cout << "Closing dump file" << std::endl;
+    wf->close();
   }
 
   void axil_write(unsigned int address, int data, int wstrb) {
@@ -134,6 +146,7 @@ public:
 };
 
 Vtop *bp_zynq_pl::tb;
+VerilatedFstC *bp_zynq_pl::wf;
 std::unique_ptr<axil<GP0_ADDR_WIDTH, GP0_DATA_WIDTH> > bp_zynq_pl::axi_gp0;
 std::unique_ptr<axil<GP1_ADDR_WIDTH, GP1_DATA_WIDTH> > bp_zynq_pl::axi_gp1;
 

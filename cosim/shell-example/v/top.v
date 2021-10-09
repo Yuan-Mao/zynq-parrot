@@ -105,7 +105,7 @@ module top #
    wire [num_fifo_ps_to_pl_lp-1:0]                           ps_to_pl_fifo_yumi_li;
 
    wire [num_regs_ps_to_pl_lp-1:0][C_S00_AXI_DATA_WIDTH-1:0] csr_data_lo;
-   wire [num_regs_ps_to_pl_lp-1:0][C_S00_AXI_DATA_WIDTH-1:0] csr_data_li;
+   wire [num_regs_pl_to_ps_lp-1:0][C_S00_AXI_DATA_WIDTH-1:0] csr_data_li;
 
    bsg_zynq_pl_shell
      #(
@@ -186,12 +186,12 @@ module top #
 `ifdef VERILATOR
    initial
      begin
-       if ($test$plusargs("bsg_trace") != 0)
-         begin
-           $display("[%0t] Tracing to trace.fst...\n", $time);
-           $dumpfile("trace.fst");
-           $dumpvars();
-         end
+//       if ($test$plusargs("bsg_trace") != 0)
+//         begin
+//           $display("[%0t] Tracing to trace.fst...\n", $time);
+//           $dumpfile("trace.fst");
+//           $dumpvars();
+//         end
      end
 `elsif VCS
    import "DPI-C" context task cosim_main(string c_args);
