@@ -10,6 +10,7 @@ export BP_EXTERNAL_DIR      ?= $(BLACKPARROT_DIR)/external
 export BP_TOOLS_DIR         ?= $(BLACKPARROT_DIR)/tools
 export BASEJUMP_STL_DIR     ?= $(BP_EXTERNAL_DIR)/basejump_stl
 export HARDFLOAT_DIR        ?= $(BP_EXTERNAL_DIR)/HardFloat
+export ETH_DIR              ?= $(COSIM_DIR)/import/eth_1g_test/src
 
 export COSIM_DIR            ?= $(TOP)/cosim
 export COSIM_INCLUDE_DIR    ?= $(COSIM_DIR)/include
