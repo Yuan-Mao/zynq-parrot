@@ -244,7 +244,7 @@ module top #
       ,.reset_clk250_late_o(reset_clk250_late_lo[0])
 
       ,.send_i(send_li[0]) //
-      ,.tx_ready_o(tx_ready_lo) //$$
+      ,.tx_ready_o(tx_ready_lo[0]) //$$
       ,.clear_buffer_i(1'b1)
       ,.rx_ready_o(/* UNUSED */)
 
