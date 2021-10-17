@@ -4,7 +4,7 @@ CURR  := $(shell pwd)
 #############################
 # Project Settings
 #############################
-export PART       ?= xc7z020clg400-1
+export PART       ?= xc7z020clg484-1
 export TOP_MODULE ?= top
 export BASENAME   ?= shell
 

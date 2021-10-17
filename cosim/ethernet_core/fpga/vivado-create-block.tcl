@@ -1,6 +1,6 @@
 set project_name shell_bd_proj
 
-create_project -force ${project_name} [pwd] -part xc7z020clg400-1
+create_project -force ${project_name} [pwd] -part xc7z020clg484-1
 create_bd_design "shell_bd_1"
 update_compile_order -fileset sources_1
 startgroup
@@ -38,5 +38,5 @@ add_files -norecurse ${project_name}.srcs/sources_1/bd/shell_bd_1/hdl/shell_bd_1
 delete_bd_objs [get_bd_nets reset_rtl_0_1] [get_bd_ports reset_rtl_0]
 connect_bd_net [get_bd_pins processing_system7_0/FCLK_RESET0_N] [get_bd_pins proc_sys_reset_0/ext_reset_in]
 save_bd_design
-launch_runs impl_1 -to_step write_bitstream -jobs 4
-wait_on_run impl_1
+#launch_runs impl_1 -to_step write_bitstream -jobs 4
+#wait_on_run impl_1
