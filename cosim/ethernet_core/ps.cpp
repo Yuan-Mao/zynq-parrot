@@ -26,14 +26,14 @@ void clear_trigger();
 void set_continuous_clear_trigger();
 void unset_continuous_clear_trigger();
 
+void testbench_init();
 void testbench1();
 void testbench2();
 
 bp_zynq_pl *zpl;
 
-void testbench1()
+void testbench_init()
 {
-  int total_packets = 1024, tx_size, rx_size;
   int seed = 0;
   if(seed == 0) {
       seed = time(NULL);
@@ -43,6 +43,10 @@ void testbench1()
   srand(seed);
   while(zpl->axil_read(0x74 + GP0_ADDR_BASE) == 1) // wait for all resets are de-asserted
     ;
+}
+void testbench1()
+{
+  int total_packets = 1024, tx_size, rx_size;
  
   for(int i = 0;i < total_packets;i++) {
     create_random_packet(tx_packet, &tx_size);
@@ -63,7 +67,15 @@ void testbench1()
 
 void testbench2()
 {
-  
+  int cnt = 1024, tx_size, rx_size;
+  create_random_packet(tx_packet, &tx_size);
+  send_packet(tx_packet, tx_size);
+  set_continuous_send_trigger();
+//  set_continuous_clear_trigger();
+  // keep ticking the clock
+  for(int i = 0;i < cnt;i++) {
+    zpl->axil_read(0x60 + GP0_ADDR_BASE);
+  }
 }
 
 void send_trigger()
@@ -219,7 +231,8 @@ extern "C" void cosim_main(char *argstr) {
   assert((zpl->axil_read(0x18 + GP0_ADDR_BASE) == (0)));
   assert((zpl->axil_read(0x1C + GP0_ADDR_BASE) == (0)));
 
-  testbench1();
+  testbench_init();
+  testbench2();
 
   zpl->done();
 
