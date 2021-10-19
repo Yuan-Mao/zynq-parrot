@@ -17,9 +17,14 @@ char rx_packet[PACKET_SIZE] __attribute__((aligned(8)));
 int create_random_packet(void *buf, int *size);
 int send_packet(void *buf, int size);
 int read_packet(void *buf, int *size);
+
 void send_trigger();
 void set_continuous_send_trigger();
-void clear_continuous_send_trigger();
+void unset_continuous_send_trigger();
+
+void clear_trigger();
+void set_continuous_clear_trigger();
+void unset_continuous_clear_trigger();
 
 void testbench1();
 void testbench2();
@@ -36,12 +41,10 @@ void testbench1()
   }
   // init
   srand(seed);
-  while(zpl->axil_read(0x70 + GP0_ADDR_BASE) == 1) // wait for all resets are de-asserted
+  while(zpl->axil_read(0x74 + GP0_ADDR_BASE) == 1) // wait for all resets are de-asserted
     ;
-  zpl->axil_write(0x24 + GP0_ADDR_BASE, 0, 0xf); // set clear_buffer_li to 0
  
   for(int i = 0;i < total_packets;i++) {
-    printf("[debug] it: %d\n", i);
     create_random_packet(tx_packet, &tx_size);
     send_packet(tx_packet, tx_size);
     read_packet(rx_packet, &rx_size);
@@ -75,10 +78,28 @@ void set_continuous_send_trigger()
   zpl->axil_write(0x38 + GP0_ADDR_BASE, 1, 0xf);
 }
 
-void clear_continuous_send_trigger()
+void unset_continuous_send_trigger()
 {
   zpl->axil_write(0x38 + GP0_ADDR_BASE, 0, 0xf);
 }
+
+void clear_trigger()
+{
+  static int clear_trigger_state = 0;
+  clear_trigger_state = ~clear_trigger_state;
+  zpl->axil_write(0x24 + GP0_ADDR_BASE, clear_trigger_state, 0xf);
+}
+
+void set_continuous_clear_trigger()
+{
+  zpl->axil_write(0x3C + GP0_ADDR_BASE, 1, 0xf);
+}
+
+void unset_continuous_clear_trigger()
+{
+  zpl->axil_write(0x3C + GP0_ADDR_BASE, 0, 0xf);
+}
+
 
 #ifdef VERILATOR
 int main(int argc, char **argv) {
@@ -96,17 +117,17 @@ extern "C" void cosim_main(char *argstr) {
   // 10, 14: output fifo heads
   // 18, 1C: output fifo counts
   // 20,24,28,2C: input fifo counts
-  // 30-48: unused input fifo counts
-  // 4C: last address of write
-  // 50: tx_ready_lo
-  // 54: tx_status_lo
-  // 58: sender_speed_lo
-  // 5C: rx_ready_lo
-  // 60: buffer_read_data_lo lower 32bit
-  // 64: rx_packet_size_lo
-  // 68: rx_status_lo
-  // 6C: receiver_speed_lo
-  // 70: |reset_clk250_late_lo
+  // 30-4C: unused input fifo counts
+  // 50: last address of write
+  // 54: tx_ready_lo
+  // 58: tx_status_lo
+  // 5C: sender_speed_lo
+  // 60: rx_ready_lo
+  // 64: buffer_read_data_lo lower 32bit
+  // 68: rx_packet_size_lo
+  // 6C: rx_status_lo
+  // 70: receiver_speed_lo
+  // 74: |reset_clk250_late_lo
 
   // the write memory map is essentially
   //
@@ -119,6 +140,7 @@ extern "C" void cosim_main(char *argstr) {
   // 30: buffer_write_data_li
   // 34: buffer_reda_addr_li
   // 38: continuous_send_li
+  // 3C: continuous_clear_li
 
   int val1 = 0xDEADBEEF;
   int val2 = 0xCAFEBABE;
@@ -130,9 +152,9 @@ extern "C" void cosim_main(char *argstr) {
   // write to two registers, checking our address snoop to see
   // actual address that was received over the AXI bus
   zpl->axil_write(0x0 + GP0_ADDR_BASE, val1, mask1);
-  assert(zpl->axil_read(0x4C + GP0_ADDR_BASE) == 0x0);
+  assert(zpl->axil_read(0x50 + GP0_ADDR_BASE) == 0x0);
   zpl->axil_write(0x4 + GP0_ADDR_BASE, val2, mask2);
-  assert(zpl->axil_read(0x4C + GP0_ADDR_BASE) == 0x4);
+  assert(zpl->axil_read(0x50 + GP0_ADDR_BASE) == 0x4);
   // 8,12
 
   // check output fifo counters
@@ -228,7 +250,7 @@ int send_packet(void *buf, int size)
     // buf address should be 64-bit aligned
     return 1;
   }
-  while(zpl->axil_read(0x50 + GP0_ADDR_BASE) == 0) // wait for tx is ready
+  while(zpl->axil_read(0x54 + GP0_ADDR_BASE) == 0) // wait for tx is ready
     ;
   zpl->axil_write(0x28 + GP0_ADDR_BASE, size, 0xf); // specify tx packet size
   for(int i = 0;i < (size + 7) / 8;i++) {
@@ -248,16 +270,15 @@ int read_packet(void *buf, int *size)
     // buf address should be 64-bit aligned
     return 1;
   }
-  while(zpl->axil_read(0x5C + GP0_ADDR_BASE) == 0) // wait for rx is ready
+  while(zpl->axil_read(0x60 + GP0_ADDR_BASE) == 0) // wait for rx is ready
     ;
   // read packet
-  *size = zpl->axil_read(0x64 + GP0_ADDR_BASE); // read rx packet size
+  *size = zpl->axil_read(0x68 + GP0_ADDR_BASE); // read rx packet size
 
   for(int i = 0;i < (*size + 7) / 8;i++) {
     zpl->axil_write(0x34 + GP0_ADDR_BASE, i, 0xf); // specify read address
-    *(unsigned *)(buf + i * 8) = zpl->axil_read(0x60 + GP0_ADDR_BASE);
+    *(unsigned *)(buf + i * 8) = zpl->axil_read(0x64 + GP0_ADDR_BASE);
   }
-  zpl->axil_write(0x24 + GP0_ADDR_BASE, 1, 0xf); // set clear_buffer_li to 1
-  zpl->axil_write(0x24 + GP0_ADDR_BASE, 0, 0xf); // set clear_buffer_li to 0
+  clear_trigger();
   return 0;
 }

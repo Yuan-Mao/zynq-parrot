@@ -99,7 +99,7 @@ module top #
    parameter CLOCK_INPUT_STYLE = "BUFR";
 
    localparam num_regs_ps_to_pl_lp = 4;
-   localparam num_fifo_ps_to_pl_lp = 4 + 7;
+   localparam num_fifo_ps_to_pl_lp = 4 + 8;
    localparam num_fifo_pl_to_ps_lp = 2;
    localparam num_regs_pl_to_ps_lp = 1 + 9;
 
@@ -360,11 +360,25 @@ module top #
     assign send_li[0] = (send_trigger_r ^ send_trigger_prev_r) | continuous_send_r;
 
 
-    assign ps_to_pl_fifo_yumi_li[10:4] = ps_to_pl_fifo_v_lo[10:4];
+    logic clear_trigger_r, clear_trigger_prev_r, continuous_clear_r;
+    always_ff @(posedge s00_axi_aclk) begin
+        if(~s00_axi_aresetn)
+            clear_trigger_prev_r <= 1'b0;
+        else begin
+            clear_trigger_prev_r <= clear_trigger_r;
+        end
+    end
+    // when continuous_clear_r is 0, clear_buffer_li will be high for 1 clock whenever pos/neg edge 
+    // of clear_trigger is detected.
+    assign clear_buffer_li[1] = (clear_trigger_r ^ clear_trigger_prev_r) | continuous_clear_r;
+
+
+
+    assign ps_to_pl_fifo_yumi_li[11:4] = ps_to_pl_fifo_v_lo[11:4];
     always_ff @(posedge s00_axi_aclk) begin
         if(~s00_axi_aresetn) begin
             send_trigger_r           <= 1'b0;
-            clear_buffer_li[1]       <= 1'b1;
+            clear_trigger_r          <= 1'b0;
             tx_packet_size_li[0]     <= buf_size_p;
             buffer_write_addr_li[0]  <= '0;
             buffer_write_data_li[0]  <= '0;
@@ -378,7 +392,7 @@ module top #
                 send_trigger_r           <= ps_to_pl_fifo_data_lo[4][0];
 
             if(ps_to_pl_fifo_v_lo[5] & ps_to_pl_fifo_yumi_li[5])
-                clear_buffer_li[1]       <= ps_to_pl_fifo_data_lo[5][0];
+                clear_trigger_r          <= ps_to_pl_fifo_data_lo[5][0];
 
             if(ps_to_pl_fifo_v_lo[6] & ps_to_pl_fifo_yumi_li[6]) begin
                 tx_packet_size_li[0]     <= ps_to_pl_fifo_data_lo[6][packet_size_width_lp - 1 :0];
@@ -399,6 +413,9 @@ module top #
 
             if(ps_to_pl_fifo_v_lo[10] & ps_to_pl_fifo_yumi_li[10])
                 continuous_send_r        <= ps_to_pl_fifo_data_lo[10][0];
+
+            if(ps_to_pl_fifo_v_lo[11] & ps_to_pl_fifo_yumi_li[11])
+                continuous_clear_r       <= ps_to_pl_fifo_data_lo[11][0];
         end
     end
 
