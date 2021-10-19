@@ -93,6 +93,11 @@ module top #
     assign clk250_i = s00_axi_aclk;
 `endif
 
+   parameter TARGET            = "GENERIC";
+//   parameter TARGET            = "XILINX";
+   parameter IODDR_STYLE       = "IODDR";
+   parameter CLOCK_INPUT_STYLE = "BUFR";
+
    localparam num_regs_ps_to_pl_lp = 4;
    localparam num_fifo_ps_to_pl_lp = 4 + 6;
    localparam num_fifo_pl_to_ps_lp = 2;
@@ -233,7 +238,10 @@ module top #
     assign reset_clk250_li = ~reset_clk250_sync_reg[0];
 
     ethernet_wrapper # (
-        .buf_size_p(buf_size_p)
+        .TARGET(TARGET)
+       ,.IODDR_STYLE(IODDR_STYLE)
+       ,.CLOCK_INPUT_STYLE(CLOCK_INPUT_STYLE)
+       ,.buf_size_p(buf_size_p)
        ,.send_width_p(send_width_p)
        ,.gap_delay_p(gap_delay_p)
     ) eth0 (
@@ -281,7 +289,10 @@ module top #
     );
 
     ethernet_wrapper #(
-        .buf_size_p(buf_size_p)
+        .TARGET(TARGET)
+       ,.IODDR_STYLE(IODDR_STYLE)
+       ,.CLOCK_INPUT_STYLE(CLOCK_INPUT_STYLE)
+       ,.buf_size_p(buf_size_p)
        ,.send_width_p(send_width_p)
        ,.gap_delay_p(gap_delay_p)
     ) eth1 (

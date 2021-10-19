@@ -1,5 +1,6 @@
 +incdir+$BASEJUMP_STL_DIR/bsg_misc
 +incdir+$BASEJUMP_STL_DIR/bsg_test
++incdir+$ETH_DIR/alex
 
 $BASEJUMP_STL_DIR/bsg_test/bsg_nonsynth_dpi_clock_gen.cpp
 $BASEJUMP_STL_DIR/bsg_dataflow/bsg_fifo_1r1w_small.v
