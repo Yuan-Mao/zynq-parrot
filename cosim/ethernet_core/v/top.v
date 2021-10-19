@@ -99,7 +99,7 @@ module top #
    parameter CLOCK_INPUT_STYLE = "BUFR";
 
    localparam num_regs_ps_to_pl_lp = 4;
-   localparam num_fifo_ps_to_pl_lp = 4 + 6;
+   localparam num_fifo_ps_to_pl_lp = 4 + 7;
    localparam num_fifo_pl_to_ps_lp = 2;
    localparam num_regs_pl_to_ps_lp = 1 + 9;
 
@@ -347,42 +347,58 @@ module top #
     assign rgmii_rxd_li[0]    = rgmii_txd_lo[1];
     assign rgmii_rx_ctl_li[0] = rgmii_tx_ctl_lo[1];
 
-
-
-    assign ps_to_pl_fifo_yumi_li[9:4] = ps_to_pl_fifo_v_lo[9:4];
+    logic send_trigger_r, send_trigger_prev_r, continuous_send_r;
     always_ff @(posedge s00_axi_aclk) begin
-        if(reset_li) begin
-            send_li[0]              <= 1'b0;
-            clear_buffer_li[1]      <= 1'b1;
-            tx_packet_size_li[0]    <= buf_size_p;
-            buffer_write_addr_li[0] <= '0;
-            buffer_write_data_li[0] <= '0;
-            buffer_read_addr_li[1]  <= '0;
-            tx_packet_size_v_r[0]   <= 1'b0;
-            buffer_write_data_v_r[0] = 1'b0;
+        if(~s00_axi_aresetn)
+            send_trigger_prev_r <= 1'b0;
+        else begin
+            send_trigger_prev_r <= send_trigger_r;
+        end
+    end
+    // when continuous_send_r is 0, send_li will be high for 1 clock whenever pos/neg edge 
+    // of send_trigger is detected.
+    assign send_li[0] = (send_trigger_r ^ send_trigger_prev_r) | continuous_send_r;
+
+
+    assign ps_to_pl_fifo_yumi_li[10:4] = ps_to_pl_fifo_v_lo[10:4];
+    always_ff @(posedge s00_axi_aclk) begin
+        if(~s00_axi_aresetn) begin
+            send_trigger_r           <= 1'b0;
+            clear_buffer_li[1]       <= 1'b1;
+            tx_packet_size_li[0]     <= buf_size_p;
+            buffer_write_addr_li[0]  <= '0;
+            buffer_write_data_li[0]  <= '0;
+            buffer_read_addr_li[1]   <= '0;
+            tx_packet_size_v_r[0]    <= 1'b0;
+            buffer_write_data_v_r[0] <= 1'b0;
+            continuous_send_r        <= 1'b0;
         end
         else begin
             if(ps_to_pl_fifo_v_lo[4] & ps_to_pl_fifo_yumi_li[4])
-                send_li[0]              <= ps_to_pl_fifo_data_lo[4][0];
+                send_trigger_r           <= ps_to_pl_fifo_data_lo[4][0];
 
             if(ps_to_pl_fifo_v_lo[5] & ps_to_pl_fifo_yumi_li[5])
-                clear_buffer_li[1]      <= ps_to_pl_fifo_data_lo[5][0];
+                clear_buffer_li[1]       <= ps_to_pl_fifo_data_lo[5][0];
 
             if(ps_to_pl_fifo_v_lo[6] & ps_to_pl_fifo_yumi_li[6]) begin
-                tx_packet_size_li[0]    <= ps_to_pl_fifo_data_lo[6][packet_size_width_lp - 1 :0];
-                tx_packet_size_v_r[0]   <= ps_to_pl_fifo_yumi_li[6];
+                tx_packet_size_li[0]     <= ps_to_pl_fifo_data_lo[6][packet_size_width_lp - 1 :0];
+                tx_packet_size_v_r[0]    <= ps_to_pl_fifo_yumi_li[6];
             end
 
             if(ps_to_pl_fifo_v_lo[7] & ps_to_pl_fifo_yumi_li[7])
-                buffer_write_addr_li[0] <= ps_to_pl_fifo_data_lo[7][addr_width_lp - 1:0];
+                buffer_write_addr_li[0]  <= ps_to_pl_fifo_data_lo[7][addr_width_lp - 1:0];
 
             if(ps_to_pl_fifo_v_lo[8] & ps_to_pl_fifo_yumi_li[8]) begin
-                buffer_write_data_li[0] <= {32'b0, ps_to_pl_fifo_data_lo[8][31:0]}; // For now, only lower 32 bits are working
-                buffer_write_data_v_r[0] = ps_to_pl_fifo_yumi_li[8];
+                // For now, duplicate lower 32 bit to higher 32 bit.
+                buffer_write_data_li[0]  <= {ps_to_pl_fifo_data_lo[8][31:0], ps_to_pl_fifo_data_lo[8][31:0]};
+                buffer_write_data_v_r[0] <= ps_to_pl_fifo_yumi_li[8];
             end
 
             if(ps_to_pl_fifo_v_lo[9] & ps_to_pl_fifo_yumi_li[9])
-                buffer_read_addr_li[1]  <= ps_to_pl_fifo_data_lo[9][addr_width_lp - 1:0];
+                buffer_read_addr_li[1]   <= ps_to_pl_fifo_data_lo[9][addr_width_lp - 1:0];
+
+            if(ps_to_pl_fifo_v_lo[10] & ps_to_pl_fifo_yumi_li[10])
+                continuous_send_r        <= ps_to_pl_fifo_data_lo[10][0];
         end
     end
 
@@ -404,7 +420,7 @@ module top #
         assign csr_data_li[2] = tx_status_lo;
         assign csr_data_li[3] = speed_lo[0];
         assign csr_data_li[4] = rx_ready_lo[1];
-        assign csr_data_li[5] = buffer_read_data_lo[1][31:0];
+        assign csr_data_li[5] = buffer_read_data_lo[1][31:0]; // For now only read out lower 32 bit
         assign csr_data_li[6] = rx_packet_size_lo[1];
         assign csr_data_li[7] = rx_status_lo;
         assign csr_data_li[8] = speed_lo[1];
