@@ -2,6 +2,7 @@
 `timescale 1 ns / 1 ps
 
 `include "bp_zynq_pl.vh"
+`include "defines.vh"
 
 module top #
   (
@@ -21,9 +22,25 @@ module top #
     // Do not modify the ports beyond this line
 
 `ifdef FPGA 
+    input  logic                                iodelay_ref_clk, // 200 MHZ for IDELAY tap value
+    input  logic                                clk250_i,
+
+    input  logic                                rgmii_rx_clk_0_i,
+    input  logic [3:0]                          rgmii_rxd_0_i,
+    input  logic                                rgmii_rx_ctl_0_i,
+    output logic                                rgmii_tx_clk_0_o,
+    output logic [3:0]                          rgmii_txd_0_o,
+    output logic                                rgmii_tx_ctl_0_o,
+
+    input  logic                                rgmii_rx_clk_1_i,
+    input  logic [3:0]                          rgmii_rxd_1_i,
+    input  logic                                rgmii_rx_ctl_1_i,
+    output logic                                rgmii_tx_clk_1_o,
+    output logic [3:0]                          rgmii_txd_1_o,
+    output logic                                rgmii_tx_ctl_1_o,
+
     // Ports of Axi Slave Bus Interface S00_AXI
     input wire                                  s00_axi_aclk,
-    input wire                                  clk250_i,
     input wire                                  s00_axi_aresetn,
     input wire [C_S00_AXI_ADDR_WIDTH-1 : 0]     s00_axi_awaddr,
     input wire [2 : 0]                          s00_axi_awprot,
@@ -93,8 +110,8 @@ module top #
     assign clk250_i = s00_axi_aclk;
 `endif
 
-   parameter TARGET            = "GENERIC";
-//   parameter TARGET            = "XILINX";
+//   parameter TARGET            = "GENERIC";
+   parameter TARGET            = "XILINX";
    parameter IODDR_STYLE       = "IODDR";
    parameter CLOCK_INPUT_STYLE = "BUFR";
 
@@ -191,6 +208,7 @@ module top #
 
     logic        reset_li;
     logic        reset_clk250_li;
+    logic        reset_iodelay_li;
 
     logic [1:0]       send_li;
     logic [1:0]       tx_ready_lo;
@@ -225,17 +243,62 @@ module top #
     logic [4:0] rx_status_lo;
     logic [1:0] reset_clk250_late_lo;
 
+`ifdef FPGA
+    (* ASYNC_REG = "TRUE", SHREG_EXTRACT = "NO" *)
     logic [3:0] reset_clk250_sync_reg;
+    (* ASYNC_REG = "TRUE", SHREG_EXTRACT = "NO" *)
+    logic [3:0] reset_iodelay_sync_reg;
+
+    logic iodelay_ref_clk_buf;
+    BUFG iodelay_ref_clk_bufg(
+        .I(iodelay_ref_clk)
+       ,.O(iodelay_ref_clk_buf)
+    );
+`else
+    logic [3:0] reset_clk250_sync_reg;
+`endif
+
 
     always @(posedge clk250_i or negedge s00_axi_aresetn) begin
         if(~s00_axi_aresetn)
-            reset_clk250_sync_reg <= 4'h0;
+            reset_clk250_sync_reg <= '1;
         else
-            reset_clk250_sync_reg <= {1'b1, reset_clk250_sync_reg[3:1]};
+            reset_clk250_sync_reg <= {1'b0, reset_clk250_sync_reg[3:1]};
+    end
+    assign reset_clk250_li  = reset_clk250_sync_reg[0];
+
+`ifdef FPGA
+    always @(posedge iodelay_ref_clk_buf or negedge s00_axi_aresetn) begin
+        if(~s00_axi_aresetn)
+            reset_iodelay_sync_reg <= '1;
+        else
+            reset_iodelay_sync_reg <= {1'b0, reset_iodelay_sync_reg[3:1]};
+    end
+    assign reset_iodelay_li = reset_iodelay_sync_reg[0];
+
+    logic [3:0] reset_iodelay_hold_cnt_r;
+    logic reset_iodelay_hold_r;
+    always @(posedge iodelay_ref_clk_buf) begin
+        if(reset_iodelay_li) begin
+            reset_iodelay_hold_cnt_r <= '1; // hold high for more than 60ns
+            reset_iodelay_hold_r <= 1'b1;
+        end
+        else begin
+            reset_iodelay_hold_r <= (reset_iodelay_hold_cnt_r != '0);
+            if(reset_iodelay_hold_cnt_r != '0)
+                reset_iodelay_hold_cnt_r <= reset_iodelay_hold_cnt_r - 1;
+        end
     end
 
+    IDELAYCTRL idelayctrl_inst (
+        .RDY(/* UNUSED */)
+        ,.REFCLK(iodelay_ref_clk_buf)
+        ,.RST(reset_iodelay_hold_r) // active-high reset
+    );
+
+`endif
+
     assign reset_li = ~s00_axi_aresetn;
-    assign reset_clk250_li = ~reset_clk250_sync_reg[0];
 
     ethernet_wrapper # (
         .TARGET(TARGET)
@@ -338,7 +401,24 @@ module top #
 
       ,.speed_o(speed_lo[1])//$$
     );
+`ifdef FPGA
+    assign rgmii_rx_clk_li[1] = rgmii_rx_clk_1_i;
+    assign rgmii_rxd_li[1]    = rgmii_rxd_1_i;
+    assign rgmii_rx_ctl_li[1] = rgmii_rx_ctl_1_i;
 
+    assign rgmii_tx_clk_0_o = rgmii_tx_clk_lo[0];
+    assign rgmii_txd_0_o    = rgmii_txd_lo[0];
+    assign rgmii_tx_ctl_0_o = rgmii_tx_ctl_lo[0];
+
+
+    assign rgmii_rx_clk_li[0] = rgmii_rx_clk_0_i;
+    assign rgmii_rxd_li[0]    = rgmii_rxd_0_i;
+    assign rgmii_rx_ctl_li[0] = rgmii_rx_ctl_0_i;
+    
+    assign rgmii_tx_clk_1_o = rgmii_tx_clk_lo[1];
+    assign rgmii_txd_1_o = rgmii_txd_lo[1];
+    assign rgmii_tx_ctl_1_o = rgmii_tx_ctl_lo[1];
+`else
     assign rgmii_rx_clk_li[1] = rgmii_tx_clk_lo[0];
     assign rgmii_rxd_li[1]    = rgmii_txd_lo[0];
     assign rgmii_rx_ctl_li[1] = rgmii_tx_ctl_lo[0];
@@ -346,6 +426,8 @@ module top #
     assign rgmii_rx_clk_li[0] = rgmii_tx_clk_lo[1];
     assign rgmii_rxd_li[0]    = rgmii_txd_lo[1];
     assign rgmii_rx_ctl_li[0] = rgmii_tx_ctl_lo[1];
+`endif
+
 
     logic send_trigger_r, send_trigger_prev_r, continuous_send_r;
     always_ff @(posedge s00_axi_aclk) begin
@@ -421,7 +503,7 @@ module top #
 
     assign tx_packet_size_v_li[0]    = tx_packet_size_v_r[0];
     assign buffer_write_data_v_li[0] = buffer_write_data_v_r[0];
-
+    
 
         logic [C_S00_AXI_ADDR_WIDTH-1:0] last_write_addr_r;
 
@@ -441,7 +523,7 @@ module top #
         assign csr_data_li[6] = rx_packet_size_lo[1];
         assign csr_data_li[7] = rx_status_lo;
         assign csr_data_li[8] = speed_lo[1];
-        assign csr_data_li[9] = |reset_clk250_late_lo;
+        assign csr_data_li[9] = 1'b0; // UNUSED
         // User logic ends
 
 `ifdef VERILATOR
