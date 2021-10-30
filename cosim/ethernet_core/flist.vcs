@@ -45,7 +45,6 @@ $ETH_DIR/alex/axis_gmii_tx.v
 $ETH_DIR/alex/eth_mac_1g_rgmii.v
 $ETH_DIR/alex/eth_mac_1g.v
 $ETH_DIR/alex/iddr.v
-$ETH_DIR/alex/oddr.v
 $ETH_DIR/alex/lfsr.v
 $ETH_DIR/alex/ssio_ddr_in.v
 $ETH_DIR/alex/rgmii_phy_if.v

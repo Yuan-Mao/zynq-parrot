@@ -110,8 +110,11 @@ module top #
     assign clk250_i = s00_axi_aclk;
 `endif
 
-//   parameter TARGET            = "GENERIC";
+`ifdef FPGA
    parameter TARGET            = "XILINX";
+`else
+   parameter TARGET            = "GENERIC";
+`endif
    parameter IODDR_STYLE       = "IODDR";
    parameter CLOCK_INPUT_STYLE = "BUFR";
 
@@ -200,11 +203,10 @@ module top #
         //
 
     parameter  buf_size_p     = 2048; // byte
-    parameter  send_width_p   = 8; // byte
-    parameter  recv_width_p   = 8; // byte
+    parameter  axis_width_p   = 4; // byte
     parameter  gap_delay_p    = 12; // clock cycle
     localparam packet_size_width_lp = $clog2(buf_size_p) + 1;
-    localparam addr_width_lp = $clog2(buf_size_p / send_width_p);
+    localparam addr_width_lp = $clog2(buf_size_p / axis_width_p);
 
     logic        reset_li;
     logic        reset_clk250_li;
@@ -221,12 +223,12 @@ module top #
 
     logic [1:0][addr_width_lp - 1:0]        buffer_write_addr_li;
 
-    logic [1:0][send_width_p * 8 -1:0]      buffer_write_data_li;
+    logic [1:0][axis_width_p * 8 -1:0]      buffer_write_data_li;
     logic [1:0]                             buffer_write_data_v_li;
     logic [1:0]                             buffer_write_data_v_r;
 
     logic [1:0][addr_width_lp - 1:0]        buffer_read_addr_li;
-    logic [1:0][recv_width_p * 8 - 1:0]     buffer_read_data_lo;
+    logic [1:0][axis_width_p * 8 - 1:0]     buffer_read_data_lo;
     logic [1:0][15:0]                       rx_packet_size_lo;
 
 
@@ -305,7 +307,7 @@ module top #
        ,.IODDR_STYLE(IODDR_STYLE)
        ,.CLOCK_INPUT_STYLE(CLOCK_INPUT_STYLE)
        ,.buf_size_p(buf_size_p)
-       ,.send_width_p(send_width_p)
+       ,.axis_width_p(axis_width_p)
        ,.gap_delay_p(gap_delay_p)
     ) eth0 (
        .clk_i(s00_axi_aclk)
@@ -356,7 +358,7 @@ module top #
        ,.IODDR_STYLE(IODDR_STYLE)
        ,.CLOCK_INPUT_STYLE(CLOCK_INPUT_STYLE)
        ,.buf_size_p(buf_size_p)
-       ,.send_width_p(send_width_p)
+       ,.axis_width_p(axis_width_p)
        ,.gap_delay_p(gap_delay_p)
     ) eth1 (
        .clk_i(s00_axi_aclk)
