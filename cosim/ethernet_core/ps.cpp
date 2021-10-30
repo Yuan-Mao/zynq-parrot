@@ -8,6 +8,8 @@
 #include <stdio.h>
 #include <time.h>
 #include "bp_zynq_pl.h"
+#include <bsg_printing.h>
+#include <bsg_argparse.h>
 
 #define PACKET_SIZE 2048
 #define AXIS_WIDTH 4
@@ -123,7 +125,7 @@ void unset_continuous_clear_trigger()
 }
 
 
-#ifdef VERILATOR
+#if defined(VERILATOR) || defined(FPGA)
 int main(int argc, char **argv) {
 #else
 extern "C" void cosim_main(char *argstr) {
