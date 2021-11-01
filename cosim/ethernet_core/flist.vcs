@@ -32,6 +32,7 @@ $BASEJUMP_STL_DIR/bsg_misc/bsg_dff.v
 
 $COSIM_SRC_DIR/bsg_zynq_pl_shell.v
 $CURR_SRC_DIR/top.v
+$CURR_SRC_DIR/status_stat.sv
 
 $ETH_DIR/alex/eth_mac_1g_rgmii_fifo.v
 $ETH_DIR/alex/ethernet_wrapper.sv

@@ -86,7 +86,7 @@ void create_dummy_packet(void *buf, int *size)
 {
     memcpy(buf, "\xEB\xCD\xF3\xE5\xC3\x90", 6);
     memcpy(buf + 6, "\xFF\xFF\xFF\xFF\xFF\xFF", 6);
-    memcpy(buf + 8, "\x08\x00", 2);
+    memcpy(buf + 12, "\x08\x00", 2);
     *size = 14;
 }
 

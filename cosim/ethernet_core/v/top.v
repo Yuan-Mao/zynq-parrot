@@ -3,6 +3,7 @@
 
 `include "bp_zynq_pl.vh"
 `include "defines.vh"
+`include "bsg_defines.v"
 
 module top #
   (
@@ -241,8 +242,8 @@ module top #
 
     logic [1:0][1:0]  speed_lo;
 
-    logic [3:0] tx_status_lo;
-    logic [4:0] rx_status_lo;
+    logic [31:0] tx_status_lo;
+    logic [31:0] rx_status_lo;
     logic [1:0] reset_clk250_late_lo;
 
 `ifdef FPGA
@@ -302,6 +303,66 @@ module top #
 
     assign reset_li = ~s00_axi_aresetn;
 
+
+    localparam stat_els_lp = 65535; // max total count for each stat
+    localparam total_stat_lp = 9; // number of stat
+    logic [total_stat_lp - 1:0] stat_v_li;
+    logic [total_stat_lp - 1:0][`BSG_WIDTH(stat_els_lp) - 1:0] stat_count_lo;
+
+    logic tx_error_underflow_lo;
+    logic tx_fifo_overflow_lo;
+    logic tx_fifo_bad_frame_lo;
+    logic tx_fifo_good_frame_lo;
+    logic rx_error_bad_frame_lo;
+    logic rx_error_bad_fcs_lo;
+    logic rx_fifo_overflow_lo;
+    logic rx_fifo_bad_frame_lo;
+    logic rx_fifo_good_frame_lo;
+
+    logic [`BSG_WIDTH(stat_els_lp) - 1:0] tx_error_underflow_cnt;
+    logic [`BSG_WIDTH(stat_els_lp) - 1:0] tx_fifo_overflow_cnt;
+    logic [`BSG_WIDTH(stat_els_lp) - 1:0] tx_fifo_bad_frame_cnt;
+    logic [`BSG_WIDTH(stat_els_lp) - 1:0] tx_fifo_good_frame_cnt;
+    logic [`BSG_WIDTH(stat_els_lp) - 1:0] rx_error_bad_frame_cnt;
+    logic [`BSG_WIDTH(stat_els_lp) - 1:0] rx_error_bad_fcs_cnt;
+    logic [`BSG_WIDTH(stat_els_lp) - 1:0] rx_fifo_overflow_cnt;
+    logic [`BSG_WIDTH(stat_els_lp) - 1:0] rx_fifo_bad_frame_cnt;
+    logic [`BSG_WIDTH(stat_els_lp) - 1:0] rx_fifo_good_frame_cnt;
+    
+    assign stat_v_li[0] = tx_error_underflow_lo;
+    assign stat_v_li[1] = tx_fifo_overflow_lo;
+    assign stat_v_li[2] = tx_fifo_bad_frame_lo;
+    assign stat_v_li[3] = tx_fifo_good_frame_lo;
+    assign stat_v_li[4] = rx_error_bad_frame_lo;
+    assign stat_v_li[5] = rx_error_bad_fcs_lo;
+    assign stat_v_li[6] = rx_fifo_overflow_lo;
+    assign stat_v_li[7] = rx_fifo_bad_frame_lo;
+    assign stat_v_li[8] = rx_fifo_good_frame_lo;
+
+    assign tx_error_underflow_cnt = stat_count_lo[0];
+    assign tx_fifo_overflow_cnt   = stat_count_lo[1];
+    assign tx_fifo_bad_frame_cnt  = stat_count_lo[2];
+    assign tx_fifo_good_frame_cnt = stat_count_lo[3];
+    assign rx_error_bad_frame_cnt = stat_count_lo[4];
+    assign rx_error_bad_fcs_cnt   = stat_count_lo[5];
+    assign rx_fifo_overflow_cnt   = stat_count_lo[6];
+    assign rx_fifo_bad_frame_cnt  = stat_count_lo[7];
+    assign rx_fifo_good_frame_cnt = stat_count_lo[8];
+
+    status_stat #(.els_p(stat_els_lp), .total_stat_p(total_stat_lp))
+      status_stat_inst (
+
+        .clk_i(s00_axi_aclk)
+       ,.reset_i(reset_li)
+       ,.v_i(stat_v_li)
+       ,.ready_i('1)
+       ,.yumi_i('0)
+       ,.count_o(stat_count_lo)
+    );
+    assign tx_status_lo = {tx_fifo_good_frame_cnt[15:0], tx_fifo_bad_frame_cnt[15:0]};
+
+    assign rx_status_lo = {rx_fifo_good_frame_cnt[15:0], rx_fifo_bad_frame_cnt[15:0]};
+
     ethernet_wrapper # (
         .TARGET(TARGET)
        ,.IODDR_STYLE(IODDR_STYLE)
@@ -340,10 +401,10 @@ module top #
       ,.rgmii_txd_o(rgmii_txd_lo[0])
       ,.rgmii_tx_ctl_o(rgmii_tx_ctl_lo[0])
 
-      ,.tx_error_underflow_o(tx_status_lo[0])//$$
-      ,.tx_fifo_overflow_o(tx_status_lo[1])
-      ,.tx_fifo_bad_frame_o(tx_status_lo[2])
-      ,.tx_fifo_good_frame_o(tx_status_lo[3])
+      ,.tx_error_underflow_o(tx_error_underflow_lo)//$$
+      ,.tx_fifo_overflow_o(tx_fifo_overflow_lo)
+      ,.tx_fifo_bad_frame_o(tx_fifo_bad_frame_lo)
+      ,.tx_fifo_good_frame_o(tx_fifo_good_frame_lo)
       ,.rx_error_bad_frame_o(/* UNUSED */)
       ,.rx_error_bad_fcs_o(/* UNUSED */)
       ,.rx_fifo_overflow_o(/* UNUSED */)
@@ -395,11 +456,11 @@ module top #
       ,.tx_fifo_overflow_o(/* UNUSED */)
       ,.tx_fifo_bad_frame_o(/* UNUSED */)
       ,.tx_fifo_good_frame_o(/* UNUSED */)
-      ,.rx_error_bad_frame_o(rx_status_lo[0])//$$
-      ,.rx_error_bad_fcs_o(rx_status_lo[1])
-      ,.rx_fifo_overflow_o(rx_status_lo[2])
-      ,.rx_fifo_bad_frame_o(rx_status_lo[3])
-      ,.rx_fifo_good_frame_o(rx_status_lo[4])
+      ,.rx_error_bad_frame_o(rx_error_bad_frame_lo)//$$
+      ,.rx_error_bad_fcs_o(rx_error_bad_fcs_lo)
+      ,.rx_fifo_overflow_o(rx_fifo_overflow_lo)
+      ,.rx_fifo_bad_frame_o(rx_fifo_bad_frame_lo)
+      ,.rx_fifo_good_frame_o(rx_fifo_good_frame_lo)
 
       ,.speed_o(speed_lo[1])//$$
     );
