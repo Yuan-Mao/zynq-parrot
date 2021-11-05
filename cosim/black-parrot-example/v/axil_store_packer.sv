@@ -8,6 +8,7 @@
 // We could very easily increase throughput here, but wait until it's a bottleneck
 
 `include "bp_me_defines.svh"
+`include "bsg_defines.v"
 
 module axil_store_packer
  import bp_me_pkg::*;

@@ -1,6 +1,6 @@
 set project_name blackparrot_bd_proj
 
-create_project -force ${project_name} [pwd] -part xc7z020clg400-1
+create_project -force ${project_name} [pwd] -part xc7z020clg484-1
 create_bd_design "blackparrot_bd_1"
 update_compile_order -fileset sources_1
 startgroup

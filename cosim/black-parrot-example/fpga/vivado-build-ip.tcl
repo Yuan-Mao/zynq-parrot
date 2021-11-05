@@ -20,7 +20,7 @@ set project_name blackparrot_ip_proj
 # create project and load in all the files
 #
 
-create_project -force ${project_name} [pwd] -part xc7z020clg400-1
+create_project -force ${project_name} [pwd] -part xc7z020clg484-1
 
 foreach {i} ${flist} {
     set filename [file normalize ${i}]
