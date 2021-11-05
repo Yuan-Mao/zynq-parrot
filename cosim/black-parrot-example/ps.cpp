@@ -310,6 +310,11 @@ extern "C" void cosim_main(char *argstr) {
   exit(EXIT_SUCCESS);
 }
 
+std::uint32_t rotl(std::uint32_t v, std::int32_t shift) {
+  std::int32_t s =  shift>=0? shift%32 : -((-shift)%32);
+  return (v<<s) | (v>>(32-s));
+}
+
 void nbf_load(bp_zynq_pl *zpl, char *nbf_filename) {
   string nbf_command;
   string tmp;
@@ -337,21 +342,37 @@ void nbf_load(bp_zynq_pl *zpl, char *nbf_filename) {
       i++;
     }
     nbf[i] = std::stoull(nbf_command, nullptr, 16);
-    if (nbf[0] == 0x3) {
+    if (nbf[0] == 0x3 || nbf[0] == 0x2 || nbf[0] == 0x1 || nbf[0] == 0x0) {
       // we map BP physical addresses for DRAM (0x8000_0000 - 0x9FFF_FFFF)
       // (256MB)
       // to the same ARM physical addresses
       // see top_fpga.v for more details
 
       if (nbf[1] >= 0x80000000) {
-        address = nbf[1];
-        address = address;
-        data = nbf[2];
-        nbf[2] = nbf[2] >> 32;
-        zpl->axil_write(address, data, 0xf);
-        address = address + 4;
-        data = nbf[2];
-        zpl->axil_write(address, data, 0xf);
+        if (nbf[0] == 0x3) {
+          data = nbf[2];
+          nbf[2] = nbf[2] >> 32;
+          zpl->axil_write(nbf[1], data, 0xf);
+          data = nbf[2];
+          zpl->axil_write(nbf[1] + 4, data, 0xf);
+        }
+        else if (nbf[0] == 0x2) {
+          zpl->axil_write(nbf[1], nbf[2], 0xf);
+        }
+        else if (nbf[0] == 0x1) {
+          int offset = nbf[1] % 4;
+          int shift = 2 * offset;
+          data = zpl->axil_read(nbf[1] - offset);
+          data = data & rotl((uint32_t)0xffff0000,shift) + nbf[2] & ((uint32_t)0x0000ffff << shift);
+          zpl->axil_write(nbf[1] - offset, data, 0xf);
+        }
+        else {
+          int offset = nbf[1] % 4;
+          int shift = 2 * offset;
+          data = zpl->axil_read(nbf[1] - offset);
+          data = data & rotl((uint32_t)0xffffff00,shift) + nbf[2] & ((uint32_t)0x000000ff << shift);
+          zpl->axil_write(nbf[1] - offset, data, 0xf);
+        }
       }
       // we map BP physical address for CSRs etc (0x0000_0000 - 0x0FFF_FFFF)
       // to ARM address to 0xA0000_0000 - 0xAFFF_FFFF  (256MB)
@@ -363,6 +384,9 @@ void nbf_load(bp_zynq_pl *zpl, char *nbf_filename) {
       }
     } else if (nbf[0] == 0xfe) {
       continue;
+    } else if (nbf[0] == 0xff) {
+      bsg_pr_dbg_ps("ps.cpp: finished loading %d lines of nbf.\n", line_count);
+      return;
     } else {
       bsg_pr_dbg_ps("ps.cpp: unrecognized nbf command, line %d : %x\n",
                     line_count, nbf[0]);
