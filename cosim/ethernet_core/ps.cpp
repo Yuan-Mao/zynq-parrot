@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
+#include <unistd.h>
 #include "bp_zynq_pl.h"
 #include <bsg_printing.h>
 #include <bsg_argparse.h>
@@ -20,7 +21,7 @@ char rx_packet[PACKET_SIZE] __attribute__((aligned(AXIS_WIDTH)));
 int create_random_packet(void *buf, int *size);
 void create_dummy_packet(void *buf, int *size);
 int send_packet(void *buf, int size);
-int read_packet(void *buf, int *size);
+int read_packet(void *buf, int *size, int blocking_mode);
 
 void send_trigger();
 void set_continuous_send_trigger();
@@ -56,7 +57,7 @@ void testbench1()
   for(int i = 0;i < total_packets;i++) {
     create_random_packet(tx_packet, &tx_size);
     send_packet(tx_packet, tx_size);
-    read_packet(rx_packet, &rx_size);
+    read_packet(rx_packet, &rx_size, 1);
     // receiver will add padding to 60 bytes
     if(tx_size < 60)
       assert(rx_size == 60);
@@ -70,24 +71,86 @@ void testbench1()
 
 void testbench2()
 {
-  int cnt = 1024, tx_size, rx_size;
-//  create_random_packet(tx_packet, &tx_size);
+  int tx_size, rx_size, speed;
+  unsigned mismatch_cnt = 0;
   create_dummy_packet(tx_packet, &tx_size);
-  send_packet(tx_packet, tx_size);
-  set_continuous_send_trigger();
-//  set_continuous_clear_trigger();
-  // keep ticking the clock
-  for(int i = 0;i < cnt;i++) {
-    zpl->axil_read(0x60 + GP0_ADDR_BASE);
+  for(unsigned idx = 0;;idx++) {
+new_round:
+    printf("[debug] round: %u\n", idx);
+//    create_random_packet(tx_packet, &tx_size);
+    printf("[debug] tx size: %u\n", tx_size);
+    send_packet(tx_packet, tx_size);
+    sleep(1);
+    printf("[debug] tx status: %x\n", zpl->axil_read(0x58 + GP0_ADDR_BASE));
+    printf("[debug] rx status: %x\n", zpl->axil_read(0x6C + GP0_ADDR_BASE));
+    printf("[debug] mismatch_cnt: %x\n", mismatch_cnt);
+    speed = zpl->axil_read(0x5C + GP0_ADDR_BASE);
+    printf("[debug] sender speed: ");
+    switch(speed) {
+      case 0:
+        printf("10M\n");
+	break;
+      case 1:
+        printf("100M\n");
+	break;
+      case 2:
+        printf("1000M\n");
+	break;
+      default:
+        printf("Unknown\n");
+	break;
+
+    }
+    if(read_packet(rx_packet, &rx_size, 0) == 0) {
+/*      printf("packet received: size %x\n", rx_size);
+      for(int i = 0;i < rx_size;i++) {
+        printf("%x ", rx_packet[i]);
+      }
+      printf("\n");*/
+      if(tx_size < 60) {
+        if(rx_size != 60) {
+          mismatch_cnt++;
+          goto new_round;
+	}
+      }
+      else {
+        if(tx_size != rx_size) {
+          mismatch_cnt++;
+          goto new_round;
+        }
+      }
+      for(int i = 0;i < tx_size;i++) {
+        if(tx_packet[i] != rx_packet[i]) {
+          mismatch_cnt++;
+          goto new_round;
+	}
+      }
+    }
+    else {
+      printf("[debug] Not received\n");
+    }
+    
   }
+
+/*  printf("Start receiving packet\n");
+  read_packet(rx_packet, &rx_size, 1);
+  printf("received packet:\n");
+  for(int i = 0;i < rx_size;i++) {
+    printf("%x ", rx_packet[i]);
+  }
+  printf("\n");*/
 }
 
 void create_dummy_packet(void *buf, int *size)
 {
-    memcpy(buf, "\xEB\xCD\xF3\xE5\xC3\x90", 6);
-    memcpy(buf + 6, "\xFF\xFF\xFF\xFF\xFF\xFF", 6);
-    memcpy(buf + 12, "\x08\x00", 2);
-    *size = 14;
+    const char payload[] = "Mesg from Zedboard";
+    int payload_size = sizeof(payload) - 1;
+//    memcpy(buf, "\x68\xEC\xC5\xBB\x3F\x46", 6);
+    memcpy(buf, "\xFF\xFF\xFF\xFF\xFF\xFF", 6); // dst MAC
+    memcpy(buf + 6, "\xDC\xA6\x32\xBB\x7D\xA4", 6); // src MAC
+    memcpy(buf + 12, "\x12\x34", 2); // custom EtherType
+    memcpy(buf + 14, payload, payload_size); // payload
+    *size = 14 + payload_size;
 }
 
 void send_trigger()
@@ -243,6 +306,7 @@ extern "C" void cosim_main(char *argstr) {
   assert((zpl->axil_read(0x18 + GP0_ADDR_BASE) == (0)));
   assert((zpl->axil_read(0x1C + GP0_ADDR_BASE) == (0)));
 
+  printf("Basic test passed\n");
   testbench_init();
   testbench2();
 
@@ -260,7 +324,7 @@ int create_random_packet(void *buf, int *size)
     // buf address should be 64-bit aligned
     return 1;
   }
-  sz = (rand() % 127) + 2; // 2 ~ 128 bytes (cannot send 1-byte packet)
+  sz = (rand() % 401) + 1000; // 1000 ~ 1400 bytes (cannot send 1-byte packet)
   for(int i = 0;i < (sz + AXIS_WIDTH - 1) / AXIS_WIDTH;i++) {
     *(unsigned long *)(buf + i * AXIS_WIDTH) = (unsigned long)rand() * (unsigned long)rand();
   }
@@ -288,15 +352,24 @@ int send_packet(void *buf, int size)
 }
 
 // Note: buf should be at least (size + 3) / 4 * 4 bytes large
-int read_packet(void *buf, int *size)
+int read_packet(void *buf, int *size, int blocking_mode)
 {
   unsigned read_data;
   if(((uint64_t)buf & (AXIS_WIDTH - 1)) != 0) {
     // buf address should be 64-bit aligned
     return 1;
   }
-  while(zpl->axil_read(0x60 + GP0_ADDR_BASE) == 0) // wait for rx is ready
-    ;
+  if(blocking_mode) {
+    while(zpl->axil_read(0x60 + GP0_ADDR_BASE) == 0) // wait for rx is ready
+      ;
+  }
+  else {
+    if(zpl->axil_read(0x60 + GP0_ADDR_BASE) == 0) {
+      // not ready yet
+      *size = 0;
+      return 1;
+    }
+  }
   // read packet
   *size = zpl->axil_read(0x68 + GP0_ADDR_BASE); // read rx packet size
 
