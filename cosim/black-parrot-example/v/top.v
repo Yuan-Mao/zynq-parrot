@@ -401,8 +401,9 @@ module top
        if ($test$plusargs("bsg_trace") != 0)
          begin
            $display("[%0t] Tracing to vcdplus.vpd...\n", $time);
-           $dumpfile("vcdplus.vpd");
-           $dumpvars();
+           $vcdplusfile("vcdplus.vpd");
+           $vcdpluson();
+           $vcdplusautoflushon();
          end
        if ($test$plusargs("c_args") != 0)
          begin
@@ -424,6 +425,14 @@ module top
      @(posedge s00_axi_aclk);
      #1;
    endtask
+
+  initial
+    begin
+      $assertoff();
+      @(posedge s00_axi_aclk);
+      @(negedge s00_axi_aresetn);
+      $asserton();
+    end
 `endif
 
 endmodule
