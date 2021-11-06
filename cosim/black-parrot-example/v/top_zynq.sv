@@ -324,6 +324,10 @@ module top_zynq
       ,.io_resp_v_o       (io_resp_v_li)
       ,.io_resp_yumi_i    (io_resp_yumi_lo)
 
+      ,.data_i(ps_to_pl_fifo_data_lo)
+      ,.data_v_i(ps_to_pl_fifo_v_lo)
+      ,.data_yumi_o(ps_to_pl_fifo_yumi_li)
+
       ,.data_o (pl_to_ps_fifo_data_li)
       ,.v_o    (pl_to_ps_fifo_v_li)
       ,.ready_i(pl_to_ps_fifo_ready_lo)

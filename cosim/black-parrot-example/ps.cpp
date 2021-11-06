@@ -9,6 +9,7 @@
 #include <locale.h>
 #include <time.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 #include "bp_zynq_pl.h"
 
@@ -236,14 +237,32 @@ extern "C" void cosim_main(char *argstr) {
   bsg_pr_dbg_ps("ps.cpp: finished nbf load\n");
   bsg_pr_info("ps.cpp: polling i/o\n");
 
+  // set non-blocking input
+  fcntl(0, F_SETFL, fcntl(0, F_GETFL) | O_NONBLOCK);
+
   while (1) {
     // keep reading as long as there is data
     data = zpl->axil_read(0x10 + GP0_ADDR_BASE);
     if (data != 0) {
       data = zpl->axil_read(0xC + GP0_ADDR_BASE);
       done |= decode_bp_output(zpl, data);
-    } else if (done)
+    } else if (done) {
       break;
+    }
+    // check if there's space for data input
+    if(zpl->axil_read(0x14 + GP0_ADDR_BASE) > 0) {
+        int ch = getchar();
+        if(ch != -1) {
+            zpl->axil_write(0xC + GP0_ADDR_BASE, ch, 0xf);
+//            printf("ps.cpp: getchar() sent\n");
+/*            for(int i = 0;i < 10000;i++) {
+                zpl->axil_read(0x10 + GP0_ADDR_BASE);
+            }
+            zpl->done();
+            delete zpl;
+            exit(0);*/
+        }
+    }
   }
 
   unsigned long long mtime_stop = get_counter_64(zpl, 0xA0000000 + 0x30bff8);
@@ -402,7 +421,8 @@ bool decode_bp_output(bp_zynq_pl *zpl, int data) {
   int print_data = data & 0xFF;
   if (rd_wr) {
     if (address == 0x101000) {
-      bsg_pr_info("%c", print_data);
+      //bsg_pr_info("%c", print_data);
+      printf("%c", print_data);
       return false;
     } else if (address == 0x102000) {
       if (print_data == 0)
@@ -417,7 +437,7 @@ bool decode_bp_output(bp_zynq_pl *zpl, int data) {
   }
   // TODO: Need to implement logic for bp io_read
   else {
-    bsg_pr_err("ps.cpp: Unsupported read (%x)\n", data);
+    bsg_pr_err("ps.cpp: Unsupported read (%x)\n", data);    
     return false;
   }
 }

@@ -20,6 +20,10 @@ module bp_to_axi_decoder
     ,output logic                            io_resp_v_o
     ,input                                   io_resp_yumi_i
 
+    ,input  [31:0]                           data_i
+    ,input                                   data_v_i
+    ,output logic                            data_yumi_o
+
     ,output [31:0]                           data_o
     ,output                                  v_o
     ,input                                   ready_i
@@ -50,12 +54,29 @@ module bp_to_axi_decoder
    wire io_cmd_w_v = io_cmd_v_i & (io_cmd_cast_i.header.msg_type == e_bedrock_mem_uc_wr);
    wire io_cmd_r_v = io_cmd_v_i & (io_cmd_cast_i.header.msg_type == e_bedrock_mem_uc_rd);
 
-   assign v_o = (io_cmd_w_v | io_cmd_r_v) & ready_i;
-   assign io_cmd_ready_and_o = ready_i;
+   wire is_getchar_addr = io_cmd_cast_i.header.addr[22:0] == 23'h10_0000;
+   wire getchar_addr_v = io_cmd_r_v & is_getchar_addr;
+
+   assign v_o = io_cmd_w_v & ready_i;
+   assign io_cmd_ready_and_o = v_o | getchar_addr_v;
 
    wire write = (io_cmd_cast_i.header.msg_type == e_bedrock_mem_uc_wr);
 
    assign data_o = {write, io_cmd_cast_i.header.addr[22:0], io_cmd_cast_i.data[7:0]};
+
+   wire io_resp_v_li = io_cmd_ready_and_o;
+
+   logic getchar_addr_v_r;
+   logic [uce_mem_data_width_lp - 1:0] io_resp_data;
+
+   bsg_dff_reset
+     #(.width_p(1))
+   getchar_addr_v_reg
+     (.clk_i(clk_i)
+      ,.reset_i(reset_i)
+      ,.data_i(getchar_addr_v)
+      ,.data_o(getchar_addr_v_r)
+      );
 
    bsg_dff_reset_set_clear
      #(.width_p(1))
@@ -63,11 +84,15 @@ module bp_to_axi_decoder
      (.clk_i(clk_i)
       ,.reset_i(reset_i)
 
-      ,.set_i(v_o)
+      ,.set_i(io_resp_v_li)
       ,.clear_i(io_resp_yumi_i)
       ,.data_o(io_resp_v_o)
       );
 
-   assign io_resp_cast_o = '{header: io_cmd_header_r, data: '0};
+   assign data_yumi_o  = getchar_addr_v_r & data_v_i;
+   assign io_resp_data = data_yumi_o ? data_i : '1;
+
+
+   assign io_resp_cast_o = '{header: io_cmd_header_r, data: io_resp_data};
 
 endmodule
