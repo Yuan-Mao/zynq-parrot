@@ -386,12 +386,12 @@ module top
 `ifdef VERILATOR
    initial
      begin
-       if ($test$plusargs("bsg_trace") != 0)
+/*       if ($test$plusargs("bsg_trace") != 0)
          begin
            $display("[%0t] Tracing to trace.fst...\n", $time);
            $dumpfile("trace.fst");
            $dumpvars();
-         end
+         end*/
      end
 `elsif VCS
    import "DPI-C" context task cosim_main(string c_args);
